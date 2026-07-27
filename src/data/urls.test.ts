@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  normalizeAssetBaseUrl,
   resolveAssetUrl,
   resolveConfiguredUrl,
   resolveSnapshotUrl,
@@ -46,5 +47,15 @@ describe("provider-neutral URL resolution", () => {
     expect(() =>
       resolveAssetUrl(key, "https://assets.example/data/"),
     ).toThrow();
+  });
+
+  it.each([
+    "https://user:password@assets.example/data",
+    "https:///assets.example/data",
+    "https://assets.example\\data",
+    "https://assets.example/data?token=public",
+    "https://assets.example/data#fragment",
+  ])("rejects unsafe asset base %s", (base) => {
+    expect(() => normalizeAssetBaseUrl(base)).toThrow();
   });
 });

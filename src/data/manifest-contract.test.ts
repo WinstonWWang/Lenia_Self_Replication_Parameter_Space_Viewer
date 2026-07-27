@@ -15,6 +15,40 @@ describe("bundled manifest contract", () => {
     ).toBe(true);
     expect(getManifestSemanticIssues(manifest)).toEqual([]);
   });
+
+  it("rejects coarse media on dead and cutoff-excluded points", () => {
+    const sourcePoster = manifest.points.find(
+      (point) => point.media.poster !== null,
+    )?.media.poster;
+    const deadIndex = manifest.points.findIndex(
+      (point) => point.classification === "experimentally_dead",
+    );
+    expect(sourcePoster).toBeTruthy();
+    expect(deadIndex).toBeGreaterThanOrEqual(0);
+
+    const deadPoint = manifest.points[deadIndex];
+    if (!deadPoint || !sourcePoster) {
+      throw new Error("Expected bundled dead point and unresolved poster");
+    }
+    const mutated = {
+      ...manifest,
+      points: manifest.points.map((point, index) =>
+        index === deadIndex
+          ? {
+              ...deadPoint,
+              media: {
+                ...deadPoint.media,
+                poster: sourcePoster,
+              },
+            }
+          : point,
+      ),
+    } as SiteManifest;
+
+    expect(getManifestSemanticIssues(mutated)).toContain(
+      `${deadPoint.id} experimentally_dead point must not publish coarse media`,
+    );
+  });
 });
 
 describe("loadSiteData fallback", () => {

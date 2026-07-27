@@ -6,15 +6,17 @@ An interactive static viewer for the cross-scale Lenia search over
 
 The production site is deployed with GitHub Pages. Scientific data and media
 are loaded through a provider-neutral runtime configuration, so the object
-store can move from Cloudflare R2 to another HTTP host without rebuilding the
-interface.
+store can move from Cloudflare R2 to another HTTP host without changing the
+application code. Updating the bundled runtime config still requires a normal
+static-site build and deployment.
 
 Production URL:
 <https://winstonwwang.github.io/Lenia_Self_Replication_Parameter_Space_Viewer/>
 
 ## Local development
 
-Requirements: Node.js 24 or a compatible active LTS release.
+Requirements: Node.js 24 or a compatible active LTS release. Python 3.12 is
+used for the dependency-free cluster-publication preflight and its tests.
 
 ```bash
 npm install
@@ -27,6 +29,7 @@ Before a change is pushed:
 npm test
 npm run check:public
 npm run build
+python -B -m unittest discover -s tests -p "test_*.py"
 # With `npm run dev` running in another terminal:
 npm run qa:browser
 ```
@@ -51,6 +54,9 @@ desktop, compact-laptop, and phone layouts as well as repeated cube gestures.
 - `public/data/review-overlay.json` — manually reviewed coarse-grid labels.
 - `public/data/refinement-catalog.json` — optional fine neighborhoods around
   selected coarse points.
+- `scripts/validate_auxiliary_data.py` — cluster-side strict preflight for
+  manual-review/refinement JSON, local media hashes, and 256 × 256 field
+  payloads.
 
 Most visual changes are controlled by CSS custom properties near the top of
 `src/styles.css`. Status colors are centralized in the data/visualization
@@ -72,7 +78,12 @@ Media keys are resolved only after path and base-containment checks.
 
 Changing storage providers is therefore a config/data publication task:
 publish the same object layout on the new HTTPS host and update
-`manifest_pointer_url`. The React and Three.js code does not change.
+`manifest_pointer_url`, then deploy the updated static config. The React and
+Three.js code does not change.
+
+The cluster-facing packaging, media, manual-review, refinement, R2
+transaction, and verification contract is in
+[`CLUSTER_DATA_HANDOFF.md`](./CLUSTER_DATA_HANDOFF.md).
 
 ## Manual review overlay
 
@@ -93,8 +104,8 @@ point ID:
 ```
 
 Only `self_replicator` reviews turn coarse points green. A reviewed
-`nonreplicator` remains the normal coarse-grid color and is reserved for local
-refinement displays.
+`nonreplicator` remains the normal coarse-grid color. Explicit light-blue
+negative cells are represented separately in the refinement catalog.
 
 ## Fine-neighborhood catalog
 

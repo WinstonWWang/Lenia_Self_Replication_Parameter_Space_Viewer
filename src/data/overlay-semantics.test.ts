@@ -4,6 +4,10 @@ import {
   getRefinementCatalogSemanticIssues,
   getReviewOverlaySemanticIssues,
 } from "./semantics";
+import {
+  validateRefinementCatalog,
+  validateReviewOverlay,
+} from "./validators";
 import type {
   RefinementCatalog,
   ReviewOverlay,
@@ -129,5 +133,66 @@ describe("public overlay text safety", () => {
     expect(getRefinementCatalogSemanticIssues(catalog, manifest)).toContain(
       "refinement catalog contains a forbidden private-path or secret pattern",
     );
+  });
+
+  it("rejects multiple refinement neighborhoods for one center", () => {
+    const neighborhood = {
+      id: "first",
+      center_point_id: unresolvedPoint.id,
+      axes: {
+        m_local: [unresolvedPoint.coordinates.m_local],
+        m_cross: [unresolvedPoint.coordinates.m_cross],
+        alpha: [unresolvedPoint.coordinates.alpha],
+      },
+      samples: [],
+    };
+    const catalog: RefinementCatalog = {
+      ...emptyRefinementCatalog,
+      neighborhoods: [
+        neighborhood,
+        {
+          ...neighborhood,
+          id: "second",
+        },
+      ],
+    };
+
+    expect(getRefinementCatalogSemanticIssues(catalog, manifest)).toContain(
+      `duplicate refinement center ${unresolvedPoint.id}`,
+    );
+  });
+});
+
+describe("auxiliary asset-base validation", () => {
+  it.each([
+    "http://assets.example",
+    "https://exa mple.com",
+    "https://example.com:bad/assets",
+    "https:///assets.example/data",
+    "https://example.com/assets?token=public",
+    "https://example.com/assets#fragment",
+    "not-a-url",
+  ])("rejects unsafe review asset base %s", (assetBaseUrl) => {
+    expect(
+      validateReviewOverlay({
+        ...emptyReviewOverlay,
+        asset_base_url: assetBaseUrl,
+      }),
+    ).toBe(false);
+  });
+
+  it("accepts an empty inherited base and a clean HTTPS base", () => {
+    expect(
+      validateReviewOverlay({
+        ...emptyReviewOverlay,
+        asset_base_url: "",
+      }),
+    ).toBe(true);
+    expect(
+      validateRefinementCatalog({
+        ...emptyRefinementCatalog,
+        asset_base_url: "https://assets.example/lenia",
+      }),
+    ).toBe(true);
   });
 });

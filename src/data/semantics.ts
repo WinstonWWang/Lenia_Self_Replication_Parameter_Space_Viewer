@@ -235,6 +235,17 @@ export function getManifestSemanticIssues(
       }
     }
 
+    if (
+      point.classification !== "dynamics_unresolved" &&
+      (point.media.poster !== null ||
+        point.media.video !== null ||
+        point.media.parameters !== null)
+    ) {
+      issues.push(
+        `${point.id} ${point.classification} point must not publish coarse media`,
+      );
+    }
+
     for (const kind of ["poster", "video", "parameters"] as const) {
       const asset = point.media[kind] as AssetDescriptor | null;
       if (asset === null) continue;
@@ -367,6 +378,7 @@ export function getRefinementCatalogSemanticIssues(
   const issues: string[] = [];
   const pointIds = new Set(manifest.points.map((point) => point.id));
   const neighborhoodIds = new Set<string>();
+  const centerPointIds = new Set<string>();
 
   if (catalog.dataset_id !== manifest.dataset_id) {
     issues.push("refinement catalog dataset_id does not match the manifest");
@@ -383,6 +395,12 @@ export function getRefinementCatalogSemanticIssues(
       issues.push(`duplicate refinement neighborhood ${neighborhood.id}`);
     }
     neighborhoodIds.add(neighborhood.id);
+    if (centerPointIds.has(neighborhood.center_point_id)) {
+      issues.push(
+        `duplicate refinement center ${neighborhood.center_point_id}`,
+      );
+    }
+    centerPointIds.add(neighborhood.center_point_id);
     if (!pointIds.has(neighborhood.center_point_id)) {
       issues.push(
         `refinement ${neighborhood.id} has an unknown center point`,

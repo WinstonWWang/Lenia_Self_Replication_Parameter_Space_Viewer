@@ -57,14 +57,30 @@ export function assertSafeAssetKey(key: string): void {
 export function normalizeAssetBaseUrl(
   assetBaseUrl: string | URL,
 ): URL {
+  const rawValue = String(assetBaseUrl);
+  if (
+    rawValue.includes("\\") ||
+    rawValue.includes("?") ||
+    rawValue.includes("#") ||
+    !/^https?:\/\/[^/?#]+(?:\/|$)/.test(rawValue) ||
+    CONTROL_CHARACTER.test(rawValue)
+  ) {
+    throw new UnsafeUrlError(
+      "Asset base must be an absolute clean HTTP(S) directory URL",
+    );
+  }
+
   let result: URL;
   try {
-    result = new URL(assetBaseUrl);
+    result = new URL(rawValue);
   } catch {
     throw new UnsafeUrlError("Asset base is not an absolute URL");
   }
 
   assertHttpProtocol(result, "Asset base");
+  if (result.username || result.password) {
+    throw new UnsafeUrlError("Asset base must not contain credentials");
+  }
   if (result.search || result.hash) {
     throw new UnsafeUrlError(
       "Asset base must be a clean directory URL without a query or fragment",

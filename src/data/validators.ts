@@ -146,6 +146,39 @@ const overlayMediaSchema = {
   additionalProperties: false,
 } as const;
 
+function isValidPublishedAssetBaseUrl(value: string): boolean {
+  if (value === "") return true;
+  if (
+    value !== value.trim() ||
+    !value.startsWith("https://") ||
+    value.includes("\\") ||
+    value.includes("?") ||
+    value.includes("#") ||
+    !/^https:\/\/[^/?#]+(?:\/|$)/.test(value) ||
+    /[\u0000-\u001f\u007f]/.test(value)
+  ) {
+    return false;
+  }
+  try {
+    const parsed = new URL(value);
+    return (
+      parsed.protocol === "https:" &&
+      parsed.hostname.length > 0 &&
+      parsed.username === "" &&
+      parsed.password === "" &&
+      parsed.search === "" &&
+      parsed.hash === ""
+    );
+  } catch {
+    return false;
+  }
+}
+
+const assetBaseUrlSchema = {
+  type: "string",
+  format: "published-asset-base-url",
+} as const;
+
 const reviewOverlaySchema = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
   type: "object",
@@ -153,10 +186,7 @@ const reviewOverlaySchema = {
   properties: {
     schema_version: { const: 1 },
     dataset_id: { type: "string", minLength: 1 },
-    asset_base_url: {
-      type: "string",
-      pattern: "^(|https://)",
-    },
+    asset_base_url: assetBaseUrlSchema,
     based_on_manifest_sha256: {
       type: "string",
       pattern: SHA256_PATTERN,
@@ -200,10 +230,7 @@ const refinementCatalogSchema = {
   properties: {
     schema_version: { const: 1 },
     dataset_id: { type: "string", minLength: 1 },
-    asset_base_url: {
-      type: "string",
-      pattern: "^(|https://)",
-    },
+    asset_base_url: assetBaseUrlSchema,
     based_on_manifest_sha256: {
       type: "string",
       pattern: SHA256_PATTERN,
@@ -298,6 +325,10 @@ const ajv = new Ajv2020({
   useDefaults: false,
 });
 addFormats(ajv);
+ajv.addFormat("published-asset-base-url", {
+  type: "string",
+  validate: isValidPublishedAssetBaseUrl,
+});
 
 export const validateSiteManifest = ajv.compile<SiteManifest>(
   siteManifestSchema,
