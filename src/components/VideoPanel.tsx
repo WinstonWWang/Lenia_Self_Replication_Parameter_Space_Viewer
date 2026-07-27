@@ -45,6 +45,9 @@ function PlayableVideo({
     const video = videoRef.current;
     if (!video) return;
 
+    // Strict Mode intentionally runs setup/cleanup twice in development.
+    // Restore the source here because cleanup detaches it to stop downloads.
+    video.src = src;
     video.currentTime = 0;
     video.load();
     void video.play().catch(() => {
@@ -58,7 +61,7 @@ function PlayableVideo({
       video.removeAttribute("src");
       video.load();
     };
-  }, []);
+  }, [src]);
 
   if (failed) {
     if (posterSrc) {
@@ -113,7 +116,14 @@ export function VideoPanel({
           <span>Static report · no video</span>
         ) : null}
       </div>
-      <div className="video-panel__frame">
+      <div
+        className="video-panel__frame"
+        style={
+          asset && src
+            ? { aspectRatio: `${asset.width} / ${asset.height}` }
+            : undefined
+        }
+      >
         {asset && src ? (
           <PlayableVideo
             key={`${selectionKey}:${asset.key}`}

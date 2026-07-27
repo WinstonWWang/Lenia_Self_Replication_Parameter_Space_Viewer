@@ -21,9 +21,10 @@ export function findFeaturedPoint(
 }
 
 export function findFeaturedNeighborhood(
-  catalog: FeaturedCatalog,
+  catalog: FeaturedCatalog | null | undefined,
   featuredPointOrId: FeaturedPoint | string,
 ): FeaturedNeighborhood | undefined {
+  if (!catalog) return undefined;
   const point =
     typeof featuredPointOrId === "string"
       ? findFeaturedPoint(catalog, featuredPointOrId)
@@ -33,6 +34,15 @@ export function findFeaturedNeighborhood(
     (neighborhood) =>
       neighborhood.id === point.refinement_neighborhood_id &&
       neighborhood.center_featured_id === point.id,
+  );
+}
+
+export function findFeaturedPointForCoarsePoint(
+  catalog: FeaturedCatalog | null | undefined,
+  coarsePointId: string,
+): FeaturedPoint | undefined {
+  return catalog?.featured_points.find(
+    (point) => point.coarse_point_id === coarsePointId,
   );
 }
 

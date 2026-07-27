@@ -11,6 +11,7 @@
     "validate:featured": "node scripts/validate-featured-catalog.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "qa:browser": "node scripts/browser-qa.mjs",
+    "qa:live": "node scripts/live-browser-smoke.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -b"

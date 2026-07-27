@@ -1,4 +1,5 @@
 import type {
+  FeaturedSample,
   InitialFieldAsset,
   OverlayMedia,
   PointReview,
@@ -35,11 +36,14 @@ export interface DetailPanelProps {
   assetBaseUrl: AssetBaseUrl;
   review?: PointReview | null;
   reviewAssetBaseUrl?: AssetBaseUrl;
-  refinementSample?: RefinementSample | null;
+  refinementSample?: RefinementSample | FeaturedSample | null;
   refinementSharedMedia?: OverlayMedia | null;
   refinementReplayPoint?: SitePoint | null;
   refinementReplayReview?: PointReview | null;
   refinementAssetBaseUrl?: AssetBaseUrl;
+  confirmedSelfReplicator?: boolean;
+  confirmedMedia?: OverlayMedia | null;
+  confirmedMediaAssetBaseUrl?: AssetBaseUrl;
   scoreSemantics: ScoreSemantics;
 }
 
@@ -82,9 +86,13 @@ function formatParameter(value: number): string {
 function displayStatus(
   point: SitePoint,
   review?: PointReview | null,
-  refinementSample?: RefinementSample | null,
+  refinementSample?: RefinementSample | FeaturedSample | null,
+  confirmedSelfReplicator = false,
 ): string {
-  const manualStatus = refinementSample?.status ?? review?.status;
+  const manualStatus =
+    refinementSample?.status ??
+    review?.status ??
+    (confirmedSelfReplicator ? "self_replicator" : undefined);
   if (manualStatus === "self_replicator") return "Self-replicator";
   if (manualStatus === "nonreplicator") return "Reviewed non-replicator";
 
@@ -101,9 +109,13 @@ function displayStatus(
 function displayStatusClass(
   point: SitePoint,
   review?: PointReview | null,
-  refinementSample?: RefinementSample | null,
+  refinementSample?: RefinementSample | FeaturedSample | null,
+  confirmedSelfReplicator = false,
 ): string {
-  const manualStatus = refinementSample?.status ?? review?.status;
+  const manualStatus =
+    refinementSample?.status ??
+    review?.status ??
+    (confirmedSelfReplicator ? "self_replicator" : undefined);
   if (manualStatus) return manualStatus.replace("_", "-");
   return point.classification.replaceAll("_", "-");
 }
@@ -176,9 +188,13 @@ function VideoEvidence({
 function videoPlaceholder(
   point: SitePoint,
   review?: PointReview | null,
-  refinementSample?: RefinementSample | null,
+  refinementSample?: RefinementSample | FeaturedSample | null,
+  confirmedSelfReplicator = false,
 ): { title: string; message: string } {
-  const manualStatus = refinementSample?.status ?? review?.status;
+  const manualStatus =
+    refinementSample?.status ??
+    review?.status ??
+    (confirmedSelfReplicator ? "self_replicator" : undefined);
   if (point.classification === "experimentally_dead") {
     return {
       title: "Experimentally dead",
@@ -212,7 +228,8 @@ function videoPlaceholder(
 function initialFieldPlaceholder(
   point: SitePoint,
   review?: PointReview | null,
-  refinementSample?: RefinementSample | null,
+  refinementSample?: RefinementSample | FeaturedSample | null,
+  confirmedSelfReplicator = false,
 ): string {
   if (point.classification === "excluded_by_m_local_cutoff") {
     return "This point was not tested, so no initial field is available.";
@@ -223,7 +240,13 @@ function initialFieldPlaceholder(
   if (point.asal.status === "not_started") {
     return "The search has not been run, so no selected initial field is available.";
   }
-  if ((refinementSample?.status ?? review?.status) === "self_replicator") {
+  if (
+    (refinementSample?.status ??
+      review?.status ??
+      (confirmedSelfReplicator
+        ? "self_replicator"
+        : undefined)) === "self_replicator"
+  ) {
     return "The self-replicator's 256 × 256 initial field has not been published.";
   }
   return "The selected 256 × 256 initial field was not published with this checkpoint.";
@@ -239,6 +262,9 @@ export function DetailPanel({
   refinementReplayPoint,
   refinementReplayReview,
   refinementAssetBaseUrl = reviewAssetBaseUrl,
+  confirmedSelfReplicator = false,
+  confirmedMedia,
+  confirmedMediaAssetBaseUrl = assetBaseUrl,
   scoreSemantics,
 }: DetailPanelProps) {
   const sampleSource: MediaSource = {
@@ -248,6 +274,10 @@ export function DetailPanel({
   const sharedSource: MediaSource = {
     media: refinementSharedMedia,
     assetBaseUrl: refinementAssetBaseUrl,
+  };
+  const confirmedSource: MediaSource = {
+    media: confirmedMedia,
+    assetBaseUrl: confirmedMediaAssetBaseUrl,
   };
   const replayReviewSource: MediaSource = {
     media: refinementReplayReview?.media,
@@ -266,6 +296,7 @@ export function DetailPanel({
   const replayMediaSources: MediaSource[] = [
     sampleSource,
     sharedSource,
+    confirmedSource,
     replayReviewSource,
     replayPointSource,
     reviewSource,
@@ -273,6 +304,7 @@ export function DetailPanel({
   ];
   const initialFieldSources: MediaSource[] = [
     sharedSource,
+    confirmedSource,
     replayReviewSource,
     replayPointSource,
     {
@@ -294,13 +326,28 @@ export function DetailPanel({
   const fieldUrl = safeAssetUrl(fieldSource);
 
   const coordinates = refinementSample?.coordinates ?? point.coordinates;
-  const status = displayStatus(point, review, refinementSample);
-  const statusClass = displayStatusClass(point, review, refinementSample);
+  const status = displayStatus(
+    point,
+    review,
+    refinementSample,
+    confirmedSelfReplicator,
+  );
+  const statusClass = displayStatusClass(
+    point,
+    review,
+    refinementSample,
+    confirmedSelfReplicator,
+  );
   const clipScore =
     point.asal.status === "completed"
       ? point.asal.best_clip_score_prompt
       : null;
-  const placeholder = videoPlaceholder(point, review, refinementSample);
+  const placeholder = videoPlaceholder(
+    point,
+    review,
+    refinementSample,
+    confirmedSelfReplicator,
+  );
 
   return (
     <aside
@@ -455,6 +502,7 @@ export function DetailPanel({
           point,
           review,
           refinementSample,
+          confirmedSelfReplicator,
         )}
       />
     </aside>

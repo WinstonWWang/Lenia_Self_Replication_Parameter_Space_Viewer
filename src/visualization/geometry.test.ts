@@ -12,7 +12,9 @@ import {
   buildRefinementCells,
   coordinatesToWorld,
   makeFeaturedPointRenderData,
+  makePointRenderData,
   normalizeAxisValue,
+  pointScaleForStatus,
   refinementAlphaIndexForSlab,
   refinementContainsAlpha,
   refinementToGlobalTransform,
@@ -193,6 +195,18 @@ describe("visualization coordinates", () => {
         m_cross: { count: 20, values: crossValues },
         alpha: { count: 20, values: axisValues },
       },
+      points: [
+        {
+          id: "triple_01608",
+          grid_index: [4, 0, 8],
+          coordinates: {
+            m_local: 0.2,
+            m_cross: 0,
+            alpha: 0.4,
+          },
+          classification: "dynamics_unresolved",
+        },
+      ],
     } as SiteManifest;
     const coordinates = {
       m_local: 0.3152100145816803,
@@ -229,6 +243,14 @@ describe("visualization coordinates", () => {
     expect(rendered.map((datum) => datum.id)).not.toContain(
       "canonical-feature",
     );
+
+    const canonical = makePointRenderData(manifest, null, catalog);
+    expect(canonical).toHaveLength(1);
+    expect(canonical[0]?.id).toBe("triple_01608");
+    expect(canonical[0]?.status).toBe("self_replicator");
+    expect(canonical[0]?.color).toBe("#43d879");
+    expect(pointScaleForStatus(canonical[0]!.status)).toBeGreaterThan(2);
+    expect(pointScaleForStatus("unresolved")).toBe(1);
   });
 });
 

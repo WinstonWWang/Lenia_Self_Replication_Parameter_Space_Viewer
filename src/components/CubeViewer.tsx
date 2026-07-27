@@ -29,7 +29,12 @@ import type {
   SelectedParameterPoint,
   SiteManifest,
 } from "../data";
-import { sameSelection, selectionKey } from "../data";
+import {
+  findFeaturedNeighborhood,
+  findFeaturedPointForCoarsePoint,
+  sameSelection,
+  selectionKey,
+} from "../data";
 import {
   buildAxisCells,
   buildRefinementBoundarySegments,
@@ -38,6 +43,7 @@ import {
   makePointRenderData,
   nearestAxisIndex,
   normalizeAxisValue,
+  pointScaleForStatus,
   REFINEMENT_NEGATIVE_COLOR,
   refinementAlphaIndexForSlab,
   refinementToGlobalTransform,
@@ -94,13 +100,18 @@ interface CameraRigProps {
 
 const POINT_VERTEX_SHADER = `
   attribute vec3 color;
+  attribute float pointScale;
   varying vec3 vColor;
   uniform float uPointSize;
 
   void main() {
     vColor = color;
     vec4 viewPosition = modelViewMatrix * vec4(position, 1.0);
-    gl_PointSize = clamp(uPointSize / max(0.2, -viewPosition.z), 3.0, 12.0);
+    gl_PointSize = clamp(
+      (uPointSize * pointScale) / max(0.2, -viewPosition.z),
+      3.0,
+      24.0
+    );
     gl_Position = projectionMatrix * viewPosition;
   }
 `;
@@ -243,16 +254,22 @@ function PointCloud({
     const nextGeometry = new THREE.BufferGeometry();
     const positions = new Float32Array(data.length * 3);
     const colors = new Float32Array(data.length * 3);
+    const pointScales = new Float32Array(data.length);
     const color = new THREE.Color();
     data.forEach((datum, index) => {
       positions.set(datum.position, index * 3);
       color.set(datum.color).toArray(colors, index * 3);
+      pointScales[index] = pointScaleForStatus(datum.status);
     });
     nextGeometry.setAttribute(
       "position",
       new THREE.BufferAttribute(positions, 3),
     );
     nextGeometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    nextGeometry.setAttribute(
+      "pointScale",
+      new THREE.BufferAttribute(pointScales, 1),
+    );
     nextGeometry.computeBoundingSphere();
     return nextGeometry;
   }, [data]);
@@ -1169,7 +1186,7 @@ function ParameterScene({
 }: Omit<CubeViewerProps, "className" | "showLegend">): React.JSX.Element {
   const pointData = useMemo(
     () => [
-      ...makePointRenderData(manifest, reviewOverlay),
+      ...makePointRenderData(manifest, reviewOverlay, featuredCatalog),
       ...makeFeaturedPointRenderData(manifest, featuredCatalog),
     ],
     [featuredCatalog, manifest, reviewOverlay],
@@ -1201,6 +1218,15 @@ function ParameterScene({
           (point) => point.id === selectedPoint.id,
         ) ?? null)
       : null;
+  const selectedLinkedFeaturedPoint =
+    selectedPoint?.kind === "coarse"
+      ? (findFeaturedPointForCoarsePoint(
+          featuredCatalog,
+          selectedPoint.id,
+        ) ?? null)
+      : null;
+  const selectedCatalogPoint =
+    selectedFeaturedPoint ?? selectedLinkedFeaturedPoint;
   const selectedStatusVisible =
     selectedDatum === null ||
     visibleStatuses === undefined ||
@@ -1227,20 +1253,25 @@ function ParameterScene({
       ),
     [isPinnedAlphaSlice, validAlphaIndex, visiblePointData],
   );
+  const selectedCatalogNeighborhood = selectedCatalogPoint
+    ? (findFeaturedNeighborhood(
+        featuredCatalog,
+        selectedCatalogPoint,
+      ) ?? null)
+    : null;
   const neighborhood =
-    selectedStatusVisible && selectedPoint?.kind === "featured"
-      ? (featuredCatalog?.neighborhoods.find(
-          (candidate) =>
-            candidate.center_featured_id === selectedPoint.id,
-        ) ?? null)
-      : selectedStatusVisible &&
-          selectedPoint?.kind === "coarse" &&
-          selectedDatum?.status === "self_replicator"
-        ? (refinementCatalog?.neighborhoods.find(
-            (candidate) =>
-              candidate.center_point_id === selectedPoint.id,
-          ) ?? null)
-        : null;
+    !selectedStatusVisible
+      ? null
+      : selectedPoint?.kind === "featured"
+        ? selectedCatalogNeighborhood
+        : selectedPoint?.kind === "coarse" &&
+            selectedDatum?.status === "self_replicator"
+          ? (refinementCatalog?.neighborhoods.find(
+              (candidate) =>
+                candidate.center_point_id === selectedPoint.id,
+            ) ??
+            selectedCatalogNeighborhood)
+          : null;
   const targetAlpha =
     validAlphaIndex === null
       ? null
@@ -1248,10 +1279,10 @@ function ParameterScene({
   const localAlphaIndex =
     neighborhood && validAlphaIndex !== null
       ? refinementAlphaIndexForSlab(
-      neighborhood,
-      manifest.axes.alpha.values,
+          neighborhood,
+          manifest.axes.alpha.values,
           validAlphaIndex,
-          selectedFeaturedPoint?.coordinates.alpha,
+          selectedCatalogPoint?.coordinates.alpha,
         )
       : null;
   const globalSliceZ =
@@ -1276,7 +1307,7 @@ function ParameterScene({
       ? refinementToGlobalTransform(
           neighborhood,
           manifest.axes,
-          selectedFeaturedPoint?.coordinates,
+          selectedCatalogPoint?.coordinates,
         )
       : null;
   const visibleHoveredDatum =
@@ -1313,7 +1344,7 @@ function ParameterScene({
           <RefinementView
             activeAlphaIndex={localAlphaIndex}
             centerCoordinates={
-              selectedFeaturedPoint?.coordinates ??
+              selectedCatalogPoint?.coordinates ??
               selectedDatum?.coordinates
             }
             exactCoordinateLabels={selectedPoint?.kind === "featured"}
@@ -1369,7 +1400,7 @@ function ParameterScene({
                 <RefinementView
                   activeAlphaIndex={localAlphaIndex}
                   centerCoordinates={
-                    selectedFeaturedPoint?.coordinates ??
+                    selectedCatalogPoint?.coordinates ??
                     selectedDatum?.coordinates
                   }
                   exactCoordinateLabels={
@@ -1486,25 +1517,34 @@ export function CubeViewer({
           (point) => point.id === selectedPoint.id,
         ) ?? null)
       : null;
-  const selectedFeaturedNeighborhood = selectedFeaturedPoint
+  const selectedLinkedFeaturedPoint =
+    selectedPoint?.kind === "coarse"
+      ? (findFeaturedPointForCoarsePoint(
+          featuredCatalog,
+          selectedPoint.id,
+        ) ?? null)
+      : null;
+  const selectedCatalogPoint =
+    selectedFeaturedPoint ?? selectedLinkedFeaturedPoint;
+  const selectedCatalogNeighborhood = selectedCatalogPoint
     ? (featuredCatalog?.neighborhoods.find(
         (neighborhood) =>
-          neighborhood.center_featured_id === selectedFeaturedPoint.id,
+          neighborhood.center_featured_id === selectedCatalogPoint.id,
       ) ?? null)
     : null;
   const selectedFeaturedFineAlphaIndex =
-    selectedFeaturedNeighborhood && pinnedAlphaIndex !== null
+    selectedCatalogNeighborhood && pinnedAlphaIndex !== null
       ? refinementAlphaIndexForSlab(
-          selectedFeaturedNeighborhood,
+          selectedCatalogNeighborhood,
           manifest.axes.alpha.values,
           pinnedAlphaIndex,
-          selectedFeaturedPoint?.coordinates.alpha,
+          selectedCatalogPoint?.coordinates.alpha,
         )
       : null;
   const selectedFeaturedFineAlpha =
     selectedFeaturedFineAlphaIndex === null
       ? null
-      : (selectedFeaturedNeighborhood?.axes.alpha[
+      : (selectedCatalogNeighborhood?.axes.alpha[
           selectedFeaturedFineAlphaIndex
         ] ?? null);
   return (
@@ -1529,12 +1569,14 @@ export function CubeViewer({
         className="cube-viewer__refinement-status"
         style={screenReaderOnlyStyle}
       >
-        {selectedFeaturedPoint && localModeEnabled
-          ? `Featured local neighborhood for ${selectedFeaturedPoint.display_label} is displayed. The white marker identifies its selected center or variation. White lines mark the boundary between manually classified sampled outcomes.`
-          : selectedFeaturedPoint &&
+        {selectedCatalogPoint && localModeEnabled
+          ? `Featured local neighborhood for ${selectedCatalogPoint.display_label} is displayed. The white marker identifies its selected center or variation. White lines mark the boundary between manually classified sampled outcomes.`
+          : selectedCatalogPoint &&
               pinnedAlphaValue !== null &&
               selectedFeaturedFineAlpha !== null
-            ? `Featured neighborhood plane at exact alpha ${selectedFeaturedFineAlpha.toString()} is displayed within coarse alpha slab ${pinnedAlphaValue.toString()}. White lines mark the boundary between manually classified sampled outcomes.`
+            ? selectedFeaturedPoint
+              ? `Featured neighborhood plane at exact alpha ${selectedFeaturedFineAlpha.toString()} is displayed within coarse alpha slab ${pinnedAlphaValue.toString()}. White lines mark the boundary between manually classified sampled outcomes.`
+              : `Featured neighborhood plane for ${selectedCatalogPoint.display_label} at exact alpha ${selectedFeaturedFineAlpha.toString()} is displayed within coarse alpha slab ${pinnedAlphaValue.toString()}. White lines mark the boundary between manually classified sampled outcomes.`
             : ""}
       </div>
       <Canvas

@@ -738,6 +738,38 @@ try {
     );
   }
 
+  const linkedCanonicalUrl = new URL(baseUrl);
+  linkedCanonicalUrl.searchParams.set("point", "triple_01608");
+  await page.goto(linkedCanonicalUrl.href, {
+    waitUntil: "domcontentloaded",
+  });
+  const linkedCanonicalDetail = page.locator(
+    '.detail-panel[data-point-id="triple_01608"]',
+  );
+  await linkedCanonicalDetail.waitFor({ timeout: 30_000 });
+  assert.equal(
+    await linkedCanonicalDetail.locator(".detail-panel__status").textContent(),
+    "Self-replicator",
+    "A canonical point linked from the featured catalog should use its confirmed status.",
+  );
+  assert.equal(
+    new URL(page.url()).searchParams.get("point"),
+    "triple_01608",
+    "The linked catalog record should retain the canonical point route.",
+  );
+  assert.equal(
+    await page.locator("[data-featured-point-id]").count(),
+    0,
+    "A linked catalog record should not create a duplicate featured detail route.",
+  );
+  assert.match(
+    (await page
+      .locator(".cube-viewer__refinement-status")
+      .textContent()) ?? "",
+    /Featured local neighborhood for triple_01608 is displayed/,
+    "The linked featured neighborhood should open from its canonical point.",
+  );
+
   for (const feature of OFF_GRID_FEATURES) {
     const featuredDeepLink = new URL(baseUrl);
     featuredDeepLink.searchParams.set("featured", feature.id);

@@ -10,6 +10,7 @@ import { SearchBar } from "./components/SearchBar";
 import {
   deriveDisplayStatus,
   findFeaturedNeighborhood,
+  findFeaturedPointForCoarsePoint,
   findPointReview,
   findRefinementNeighborhood,
   loadSiteData,
@@ -189,17 +190,34 @@ export default function App() {
     selectedPoint?.kind === "featured"
       ? featuredPointById.get(selectedPoint.id) ?? null
       : null;
+  const selectedLinkedFeaturedPoint =
+    selectedCoarsePoint && data
+      ? findFeaturedPointForCoarsePoint(
+          data.featuredCatalog,
+          selectedCoarsePoint.id,
+        )
+      : undefined;
   const selectedReview =
     selectedCoarsePoint && data
       ? findPointReview(data.reviewOverlay, selectedCoarsePoint.id)
       : undefined;
-  const selectedNeighborhood =
+  const selectedRefinementNeighborhood =
     selectedCoarsePoint && data
       ? findRefinementNeighborhood(
           data.refinementCatalog,
           selectedCoarsePoint.id,
         )
       : undefined;
+  const selectedLinkedFeaturedNeighborhood =
+    selectedLinkedFeaturedPoint && data
+      ? findFeaturedNeighborhood(
+          data.featuredCatalog,
+          selectedLinkedFeaturedPoint,
+        )
+      : undefined;
+  const selectedNeighborhood =
+    selectedRefinementNeighborhood ??
+    selectedLinkedFeaturedNeighborhood;
   const selectedFeaturedNeighborhood =
     selectedFeaturedPoint && data
       ? findFeaturedNeighborhood(
@@ -207,8 +225,11 @@ export default function App() {
           selectedFeaturedPoint,
         )
       : undefined;
-  const selectedReplayPoint = selectedNeighborhood?.replay_source_point_id
-    ? pointById.get(selectedNeighborhood.replay_source_point_id)
+  const selectedReplayPoint =
+    selectedRefinementNeighborhood?.replay_source_point_id
+    ? pointById.get(
+        selectedRefinementNeighborhood.replay_source_point_id,
+      )
     : undefined;
   const selectedReplayReview =
     selectedReplayPoint && data
@@ -229,6 +250,13 @@ export default function App() {
           ? featuredPointById.get(selection.id)
           : undefined;
       if (!coarsePoint && !featuredPoint) return;
+      const linkedFeaturedPoint =
+        coarsePoint && data
+          ? findFeaturedPointForCoarsePoint(
+              data.featuredCatalog,
+              coarsePoint.id,
+            )
+          : undefined;
 
       setSelectedPoint(selection);
       setSelectedLocalSample(null);
@@ -242,6 +270,7 @@ export default function App() {
             data
               ? findPointReview(data.reviewOverlay, coarsePoint.id)
               : undefined,
+            data?.featuredCatalog,
           )
         : "self_replicator";
       setVisibleStatuses((current) => {
@@ -254,10 +283,16 @@ export default function App() {
         selection.kind === "coarse"
           ? Boolean(
               data &&
-                findRefinementNeighborhood(
+                (findRefinementNeighborhood(
                   data.refinementCatalog,
                   selection.id,
-                ),
+                ) ??
+                  (linkedFeaturedPoint
+                    ? findFeaturedNeighborhood(
+                        data.featuredCatalog,
+                        linkedFeaturedPoint,
+                      )
+                    : undefined)),
             )
           : Boolean(
               data &&
@@ -494,13 +529,20 @@ export default function App() {
             assetBaseUrl={data.assetBaseUrl}
             review={selectedReview}
             reviewAssetBaseUrl={data.reviewAssetBaseUrl}
-            refinementSample={
-              selectedLocalSample as RefinementSample | null
-            }
+            refinementSample={selectedLocalSample}
             refinementSharedMedia={selectedNeighborhood?.shared_media}
             refinementReplayPoint={selectedReplayPoint}
             refinementReplayReview={selectedReplayReview}
-            refinementAssetBaseUrl={data.refinementAssetBaseUrl}
+            refinementAssetBaseUrl={
+              selectedRefinementNeighborhood
+                ? data.refinementAssetBaseUrl
+                : data.featuredAssetBaseUrl
+            }
+            confirmedSelfReplicator={Boolean(
+              selectedLinkedFeaturedPoint,
+            )}
+            confirmedMedia={selectedLinkedFeaturedPoint?.media}
+            confirmedMediaAssetBaseUrl={data.featuredAssetBaseUrl}
             scoreSemantics={data.manifest.score_semantics}
           />
         ) : selectedFeaturedPoint ? (

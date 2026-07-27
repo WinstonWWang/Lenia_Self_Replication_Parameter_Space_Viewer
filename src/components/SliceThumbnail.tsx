@@ -104,14 +104,20 @@ export function SliceThumbnail({
 
     for (const point of slicePoints) {
       const review = reviewsByPointId.get(point.id);
-      const status = deriveDisplayStatus(point, review);
+      const status = deriveDisplayStatus(
+        point,
+        review,
+        featuredCatalog,
+      );
       if (visibleStatuses && !visibleStatuses.has(status)) continue;
 
       drawPoint(
         context,
         (point.grid_index[0] + 0.5) * cellWidth,
         (mCrossCount - point.grid_index[1] - 0.5) * cellHeight,
-        pointRadius,
+        status === "self_replicator"
+          ? pointRadius * 1.8
+          : pointRadius,
         THUMBNAIL_STATUS_COLORS[status],
       );
     }
@@ -131,13 +137,14 @@ export function SliceThumbnail({
               manifest.axes.m_cross.values,
               canvas.height,
             ),
-          pointRadius * 1.25,
+          pointRadius * 1.8,
           THUMBNAIL_STATUS_COLORS.self_replicator,
         );
       }
     }
   }, [
     featuredSlicePoints,
+    featuredCatalog,
     manifest.axes.m_cross.count,
     manifest.axes.m_cross.values,
     manifest.axes.m_local.count,

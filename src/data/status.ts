@@ -1,11 +1,13 @@
 import type {
   DisplayStatus,
+  FeaturedCatalog,
   PointReview,
   RefinementCatalog,
   RefinementNeighborhood,
   ReviewOverlay,
   SitePoint,
 } from "./types";
+import { findFeaturedPointForCoarsePoint } from "./featured";
 
 function isReviewOverlay(
   value: PointReview | ReviewOverlay,
@@ -23,12 +25,17 @@ export function findPointReview(
 export function deriveDisplayStatus(
   point: SitePoint,
   reviewOrOverlay?: PointReview | ReviewOverlay | null,
+  featuredCatalog?: FeaturedCatalog | null,
 ): DisplayStatus {
   if (point.classification === "excluded_by_m_local_cutoff") {
     return "physically_uninteresting";
   }
   if (point.classification === "experimentally_dead") {
     return "experimentally_dead";
+  }
+
+  if (findFeaturedPointForCoarsePoint(featuredCatalog, point.id)) {
+    return "self_replicator";
   }
 
   const review =

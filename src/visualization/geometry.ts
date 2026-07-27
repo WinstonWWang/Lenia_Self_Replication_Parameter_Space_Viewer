@@ -30,6 +30,13 @@ export const STATUS_COLORS: Record<DisplayStatus, string> = {
 };
 
 export const REFINEMENT_NEGATIVE_COLOR = "#9acfff";
+export const SELF_REPLICATOR_POINT_SCALE = 2.2;
+
+export function pointScaleForStatus(status: DisplayStatus): number {
+  return status === "self_replicator"
+    ? SELF_REPLICATOR_POINT_SCALE
+    : 1;
+}
 
 interface BasePointRenderDatum {
   id: string;
@@ -113,12 +120,14 @@ export function makeReviewMap(
 export function makePointRenderData(
   manifest: SiteManifest,
   reviewOverlay?: ReviewOverlay | null,
+  featuredCatalog?: FeaturedCatalog | null,
 ): PointRenderDatum[] {
   const reviews = makeReviewMap(reviewOverlay);
   return manifest.points.map((point) => {
     const status = deriveDisplayStatus(
       point,
       reviews.get(point.id),
+      featuredCatalog,
     ) as DisplayStatus;
     return {
       kind: "coarse",
