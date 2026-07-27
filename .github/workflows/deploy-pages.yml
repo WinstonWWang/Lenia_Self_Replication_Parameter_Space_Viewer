@@ -42,6 +42,9 @@ jobs:
       - name: Test cluster publication preflight
         run: python -B -m unittest discover -s tests -p "test_*.py"
 
+      - name: Test featured catalog and asset preflight
+        run: npm run check:featured-fixture
+
       - name: Build site
         run: npm run build
 

@@ -1,8 +1,12 @@
 import { useId, useState, type FormEvent } from "react";
 
 import {
+  findExactFeaturedPoint,
+  findFeaturedPointByName,
   parseParameterTriple,
   snapToNearestTestedPoint,
+  type FeaturedPoint,
+  type ParameterCoordinates,
   type SiteManifest,
   type SitePoint,
 } from "../data";
@@ -10,20 +14,28 @@ import {
 export interface SearchBarProps {
   manifest: SiteManifest;
   onSelect: (point: SitePoint) => void;
+  featuredPoints?: readonly FeaturedPoint[];
+  onSelectFeatured?: (point: FeaturedPoint) => void;
   disabled?: boolean;
 }
 
 const formatParameter = (value: number): string =>
   value.toFixed(5).replace(/\.?0+$/, "");
 
-const formatTriple = (point: SitePoint): string => {
-  const { m_local: mLocal, m_cross: mCross, alpha } = point.coordinates;
-  return `(${formatParameter(mLocal)}, ${formatParameter(mCross)}, ${formatParameter(alpha)})`;
+const formatTriple = (
+  coordinates: ParameterCoordinates,
+  exact = false,
+): string => {
+  const { m_local: mLocal, m_cross: mCross, alpha } = coordinates;
+  const format = exact ? String : formatParameter;
+  return `(${format(mLocal)}, ${format(mCross)}, ${format(alpha)})`;
 };
 
 export function SearchBar({
   manifest,
   onSelect,
+  featuredPoints = [],
+  onSelectFeatured,
   disabled = false,
 }: SearchBarProps) {
   const inputId = useId();
@@ -32,16 +44,54 @@ export function SearchBar({
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const offGridFeatured = featuredPoints.filter(
+    (point) => point.coarse_point_id === undefined,
+  );
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const featuredSuggestions =
+    normalizedQuery && !parseParameterTriple(query)
+      ? offGridFeatured
+          .filter(
+            (point) =>
+              point.display_label
+                .toLocaleLowerCase()
+                .includes(normalizedQuery) ||
+              point.id.toLocaleLowerCase().includes(normalizedQuery),
+          )
+          .slice(0, 5)
+      : [];
+
+  const selectFeatured = (point: FeaturedPoint) => {
+    if (!onSelectFeatured) return;
+    onSelectFeatured(point);
+    setQuery(formatTriple(point.coordinates, true));
+    setError(null);
+    setFeedback(
+      `Selected Featured off-grid ${point.display_label} at exact coordinates ${formatTriple(point.coordinates, true)}.`,
+    );
+  };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    const namedFeatured = findFeaturedPointByName(offGridFeatured, query);
+    if (namedFeatured && onSelectFeatured) {
+      selectFeatured(namedFeatured);
+      return;
+    }
 
     const parsed = parseParameterTriple(query);
     if (!parsed) {
       setFeedback(null);
       setError(
-        "Enter three finite numbers separated by commas, for example (0.5, 3.2, 0.75).",
+        "Enter a featured label or three finite numbers separated by commas, for example (0.5, 3.2, 0.75).",
       );
+      return;
+    }
+
+    const exactFeatured = findExactFeaturedPoint(offGridFeatured, parsed);
+    if (exactFeatured && onSelectFeatured) {
+      selectFeatured(exactFeatured);
       return;
     }
 
@@ -55,7 +105,7 @@ export function SearchBar({
     onSelect(result.point);
     setError(null);
     setFeedback(
-      `Snapped to tested point ${formatTriple(result.point)} — ${result.point.id}${
+      `Snapped to tested point ${formatTriple(result.point.coordinates)} — ${result.point.id}${
         result.wasSnapped ? "." : " (the entered triple was already on the grid)."
       }`,
     );
@@ -98,14 +148,38 @@ export function SearchBar({
         <button
           className="parameter-search__submit"
           type="submit"
-          disabled={disabled || manifest.points.length === 0}
+          disabled={
+            disabled ||
+            (manifest.points.length === 0 && offGridFeatured.length === 0)
+          }
         >
           Search
         </button>
       </div>
+      {featuredSuggestions.length > 0 ? (
+        <ul
+          className="parameter-search__results"
+          aria-label="Featured parameter results"
+        >
+          {featuredSuggestions.map((point) => (
+            <li key={point.id}>
+              <button
+                type="button"
+                disabled={disabled || !onSelectFeatured}
+                onClick={() => selectFeatured(point)}
+                aria-label={`Select featured off-grid ${point.display_label}`}
+              >
+                <span>{point.display_label}</span>
+                <strong>Featured off-grid</strong>
+                <small>{formatTriple(point.coordinates, true)}</small>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <span id={hintId} className="parameter-search__hint">
-        Enter (m<sub>ℓ</sub>, m<sub>c</sub>, α). The viewer selects the nearest
-        tested grid point.
+        Enter a featured label or (m<sub>ℓ</sub>, m<sub>c</sub>, α). Exact
+        featured coordinates are selected before coarse-grid snapping.
       </span>
       {(error || feedback) && (
         <span

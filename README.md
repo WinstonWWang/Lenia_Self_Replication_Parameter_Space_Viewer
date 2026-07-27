@@ -28,6 +28,7 @@ Before a change is pushed:
 ```bash
 npm test
 npm run check:public
+npm run check:featured-fixture
 npm run build
 python -B -m unittest discover -s tests -p "test_*.py"
 # With `npm run dev` running in another terminal:
@@ -57,6 +58,9 @@ desktop, compact-laptop, and phone layouts as well as repeated cube gestures.
 - `scripts/validate_auxiliary_data.py` — cluster-side strict preflight for
   manual-review/refinement JSON, local media hashes, and 256 × 256 field
   payloads.
+- `schemas/featured-catalog.schema.json` and
+  `scripts/validate-featured-catalog.mjs` — exact off-grid featured-point
+  contract and the website-equivalent schema/semantic preflight.
 
 Most visual changes are controlled by CSS custom properties near the top of
 `src/styles.css`. Status colors are centralized in the data/visualization
@@ -71,7 +75,8 @@ On startup the viewer:
 3. Strictly validates both the pointer and snapshot.
 4. Falls back to the bundled manifest if the remote source is unavailable or
    invalid.
-5. Loads manual-review and refinement overlays independently and fail-soft.
+5. Loads manual-review, refinement, and optional off-grid featured catalogs
+   independently and fail-soft.
 
 All relative URLs in the config are resolved against the config file itself.
 Media keys are resolved only after path and base-containment checks.
@@ -121,6 +126,35 @@ Shared-field media may be attached to the neighborhood so nearby parameters
 can replay the anchor point’s selected initial field. Alternatively,
 `replay_source_point_id` can reference the coarse point whose published
 review/manifest media should be reused.
+
+## Off-grid featured catalog
+
+Confirmed centers that are not canonical 20 × 20 × 20 grid points remain in a
+separate optional catalog. Validate a staged or publicly downloaded catalog
+against the exact browser contract before adding its URL to
+`public/site-config.json`:
+
+```bash
+npm run validate:featured -- /path/to/featured-replicators.json \
+  /path/to/decoded-live-candidate/site-manifest.json \
+  --media-root /path/to/staged-object-tree \
+  --expect-prepared-first-publication
+```
+
+The prepared-publication command requires its second argument to be the exact
+decoded live-candidate manifest the catalog pins and the browser will load.
+Omitting it is supported only for the tracked development fixture. Use
+`--asset-base-url https://your-public-host.example/` instead of
+`--media-root` to verify every object after publication; that public base must
+match the effective base declared by the catalog (or manifest), exactly as the
+browser will resolve it. Featured assets still use provider-neutral
+`media/v1/` or `repro/v1/` keys. The prepared-publication gate also enforces
+the five reviewed centers, all 2,900 numbered variation scans, the 145/2,760
+replicator/nonreplicator result, authoritative source/applied coordinates and
+scan-to-grid mapping, CLIP-score identity, complete center media, and explicit
+null variation videos. In prepared mode, FFmpeg must be available on `PATH`
+(or named with `--ffmpeg-command`) and must fully decode every poster, video,
+and image-encoded initial field.
 
 ## GitHub Pages
 

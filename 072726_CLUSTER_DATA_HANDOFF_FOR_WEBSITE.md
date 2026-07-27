@@ -19,6 +19,7 @@ src/data/semantics.ts
 src/data/manifest-integrity.ts
 src/data/urls.ts
 scripts/validate_auxiliary_data.py
+scripts/validate-featured-catalog.mjs
 ```
 
 If a future code change disagrees with this prose, stop publication and
@@ -111,7 +112,7 @@ also open a fine, data-driven neighborhood:
 - a white boundary is drawn only where an explicit green cell shares a face
   with an explicit light-blue cell.
 
-## The three data planes
+## The four data planes
 
 Keep these concerns separate.
 
@@ -120,6 +121,7 @@ Keep these concerns separate.
 | Base manifest | Fixed 8,000-point grid, extinction evidence, ASAL progress, CLIP search context, coarse posters/videos/parameters | Immutable hashed snapshot selected by `manifests/latest.json` |
 | Review overlay | Winston’s manual labels for unresolved coarse triples, plus reviewed-point media such as the 256 by 256 selected field | Small mutable JSON document |
 | Refinement catalog | Explicit fine axes and manually labelled samples around selected green triples | Small mutable JSON document plus immutable media |
+| Featured catalog | Exact off-grid confirmed centers and their local manually labelled neighborhoods, kept separate from the canonical 8,000-point grid | Small mutable JSON document plus immutable media |
 
 This separation is deliberate. The cluster may update ASAL progress and media
 without overwriting manual labels, and Winston may review points without
@@ -150,7 +152,7 @@ Therefore:
 }
 ```
 
-After that one deployment, the site refetches all three data planes every five
+After that one deployment, the site refetches the configured data planes every five
 minutes, and normal data updates do not require a code deployment.
 
 ## Required R2 object layout
@@ -190,6 +192,9 @@ overlays/
 
 refinements/
   refinement-catalog.json
+
+featured/
+  featured-replicators.json
 ```
 
 R2 presents a flat object namespace; the slashes are stable key prefixes, not
@@ -200,11 +205,11 @@ That prefix is not part of the production dataset layout. Remove or move the
 transport-only smoke fixture before the real publication; use it only in a
 separate test bucket.
 
-Every asset referenced by the manifest, review overlay, or refinement catalog
-must use a relative key beginning with `media/v1/` or `repro/v1/`. Keys must
-not contain a leading slash, backslash, percent sign, query, fragment, empty
-segment, `.` segment, or `..` segment. Do not place a host name or signed URL
-in an asset `key`.
+Every asset referenced by the manifest, review overlay, refinement catalog, or
+featured catalog must use a relative key beginning with `media/v1/` or
+`repro/v1/`. Keys must not contain a leading slash, backslash, percent sign,
+query, fragment, empty segment, `.` segment, or `..` segment. Do not place a
+host name or signed URL in an asset `key`.
 
 Use content-addressed names. The 64-character lowercase SHA-256 in the
 filename must be the SHA-256 of the exact uploaded bytes.
@@ -212,6 +217,119 @@ filename must be the SHA-256 of the exact uploaded bytes.
 `<sample-id>` in the illustrative storage tree is only a sanitized path
 segment chosen by the publisher, such as `i01_j03_k02`. Fine-sample JSON has no
 `id` or `sample_id` property in schema version 1.
+
+## Off-grid featured catalog publication
+
+Publish the off-grid featured catalog at the stable R2 object key:
+
+```text
+featured/featured-replicators.json
+```
+
+Its normative structural contract is
+[`schemas/featured-catalog.schema.json`](schemas/featured-catalog.schema.json).
+The website additionally performs semantic validation against the active base
+manifest, including identity/reference integrity, exact sample coordinates,
+axis ordering, parameter bounds, media-key safety, and manifest compatibility.
+Standalone schema tooling must register the schema's
+`published-asset-base-url` custom format with the website rule: an empty
+inherited base or a clean absolute HTTPS directory URL with no credentials,
+query, fragment, backslash, surrounding whitespace, or control character.
+
+Every center or variation asset must be referenced through an asset descriptor
+under the catalog's `media`, `shared_media`, or sample `media` properties.
+Upload each immutable object at the descriptor's exact `key`; do not infer an
+asset from a display label, scan index, local path, or naming convention.
+
+Preflight the complete catalog and all referenced staged assets against both
+the strict schema and the website's semantic contract before publication.
+Then fetch the public object bytes and repeat validation before enabling it.
+The existing review/refinement auxiliary preflight does not by itself validate
+this featured document.
+
+Run the website's exact schema and semantic validator from the website
+repository, first on the staged file and then on the publicly downloaded
+bytes:
+
+```powershell
+npm ci
+npm run validate:featured -- C:\path\to\featured-replicators.json C:\path\to\decoded-live-candidate\site-manifest.json `
+  --media-root C:\path\to\staged-object-tree `
+  --expect-prepared-first-publication
+```
+
+On the Linux cluster, use the equivalent absolute paths:
+
+```bash
+npm ci
+npm run validate:featured -- /path/to/featured-replicators.json \
+  /path/to/decoded-live-candidate/site-manifest.json \
+  --media-root /path/to/staged-object-tree \
+  --expect-prepared-first-publication
+```
+
+For readability, the same required production-manifest argument is shown
+separately here:
+
+```powershell
+npm run validate:featured -- C:\path\to\featured-replicators.json C:\path\to\site-manifest.json `
+  --media-root C:\path\to\staged-object-tree `
+  --expect-prepared-first-publication
+```
+
+For the post-upload pass, validate the downloaded catalog while streaming
+every referenced public asset from its deployed base:
+
+```bash
+npm run validate:featured -- /path/to/downloaded-featured-replicators.json \
+  /path/to/decoded-live-manifest/site-manifest.json \
+  --asset-base-url https://your-public-object-host.example/ \
+  --expect-prepared-first-publication
+```
+
+When `--expect-prepared-first-publication` is present, the validator rejects a
+missing second positional argument. The bundled fallback manifest is only a
+development-fixture default; it must never stand in for the rebuilt live R2
+manifest because the live manifest has its own SHA-256 and nonempty public
+asset base. In prepared mode, the verifier also recomputes the canonical
+manifest digest from the exact file bytes before accepting the catalog pin.
+
+The command verifies every referenced object's existence, byte count,
+SHA-256, content-addressed filename, and declared payload dimensions and
+finite initial-field values. In prepared mode it also runs a full FFmpeg decode
+of every poster, video, and image-encoded initial field; `ffmpeg` must be on
+`PATH`, or pass `--ffmpeg-command /absolute/path/to/ffmpeg`. Public
+`--asset-base-url` verification rejects redirects and is rejected unless the
+supplied base exactly matches the effective catalog/manifest asset base that
+the browser will use. Public reads have a two-minute per-object transfer
+timeout and a streaming 512 MiB per-object ceiling. The prepared-publication
+gate requires an explicit
+catalog `asset_base_url`; complete poster, video, parameters, and initial-field
+descriptors for all five centers; explicit `media.video: null` on every varied
+sample; one consistent selected initial field throughout each neighborhood;
+no center/shared/sample override that shadows the center poster or replay;
+complete CLIP/loss fields with
+`best_clip_score_prompt = -best_loss_prompt`, provenance, and a score warning
+for each off-grid center; the authoritative applied and higher-precision
+source-reported coordinates; all numbered scans from Winston's manual ranges;
+the authoritative scan-to-coordinate/grid-index/variation-label mapping
+generated by the documented `[-5..-1,+1..+5]` one-percent offsets (local
+outer, cross middle, alpha inner), including axes equal to exactly the sorted
+unique sampled values plus the center; and exactly 145 `self_replicator` plus
+2,760 `nonreplicator` samples. It must report five centers, three off-grid
+centers, five neighborhoods, and 2,905 samples. It shares the AJV schema and
+semantic implementation used by the browser; do not replace it with
+schema-only validation.
+
+For each varied sample, make `variation_label` a string ending in the numeric
+source-catalog label, such as `triple_01608_v0051`; the prepared gate compares
+that trailing number as well as the exact scan index, coordinates, and grid
+index.
+
+Keep `featured_catalog_url` absent from production `site-config.json` until
+`featured/featured-replicators.json` is public, CORS-readable, and passes that
+full validation. Uploading media or the catalog does not activate the data
+plane; the website configuration change is a separate final release step.
 
 ## Point identity and grid placement
 
@@ -1308,12 +1426,21 @@ Review overlay URL (or "not published"):
 Review count:
 Refinement catalog URL (or "not published"):
 Neighborhood/sample counts:
+Featured catalog URL (or "not published"):
+Featured centers / off-grid centers / neighborhoods / samples:
+Featured self-replicator / nonreplicator sample counts:
+Staged featured preflight result:
+Public featured preflight result:
+Trusted featured FFmpeg decode result:
 
 Representative poster URL + HTTP Content-Type:
 Representative video URL + HTTP Content-Type/range result:
 Representative field URL + HTTP Content-Type:
+Representative featured-center video URL + HTTP Content-Type/range result:
+Representative featured-center field URL + HTTP Content-Type:
 CORS Access-Control-Allow-Origin result:
 Full remote verification result:
+featured_catalog_url activation/deployment result:
 ```
 
 Do not include credentials in that report.
@@ -1342,6 +1469,21 @@ Do not include credentials in that report.
       prefix yet.
 - [ ] The strict manifest/pointer validator passes.
 - [ ] The auxiliary preflight passes before any review/refinement publication.
+- [ ] The staged featured preflight passes with
+      `--expect-prepared-first-publication`.
+- [ ] Featured counts are exactly 5 centers, 3 off-grid centers, 5
+      neighborhoods, 2,905 samples, 145 self-replicators, and 2,760
+      nonreplicators.
+- [ ] Every featured center has verified video, poster, parameter, and
+      256-by-256 initial-field assets; every varied sample explicitly sets
+      `media.video: null`.
+- [ ] The public featured preflight passes against the same asset base the
+      browser will use.
+- [ ] FFmpeg fully decodes every featured poster, video, and image-encoded
+      initial field without decoder errors.
+- [ ] `featured_catalog_url` remains absent from production until the featured
+      catalog and every asset are public, CORS-readable, and pass the complete
+      gate; only then is the URL activated and the viewer redeployed.
 - [ ] The live manifest has a nonempty R2 `asset_base_url`.
 - [ ] All immutable media is uploaded before the manifest.
 - [ ] The immutable manifest is uploaded and remotely hash-verified.

@@ -1,0 +1,548 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "dataset_id",
+    "featured_points",
+    "neighborhoods"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "dataset_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "asset_base_url": {
+      "type": "string",
+      "format": "published-asset-base-url"
+    },
+    "based_on_manifest_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "featured_points": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/featuredPoint"
+      }
+    },
+    "neighborhoods": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/featuredNeighborhood"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "coordinates": {
+      "type": "object",
+      "required": [
+        "m_local",
+        "m_cross",
+        "alpha"
+      ],
+      "properties": {
+        "m_local": {
+          "type": "number"
+        },
+        "m_cross": {
+          "type": "number"
+        },
+        "alpha": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false
+    },
+    "posterAsset": {
+      "type": "object",
+      "required": [
+        "key",
+        "sha256",
+        "bytes",
+        "width",
+        "height"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^(media|repro)/v1/"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "videoAsset": {
+      "type": "object",
+      "required": [
+        "key",
+        "sha256",
+        "bytes",
+        "width",
+        "height",
+        "frames",
+        "fps",
+        "scored_updates",
+        "replay_updates"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^(media|repro)/v1/"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "frames": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "fps": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "scored_updates": {
+          "const": 800
+        },
+        "replay_updates": {
+          "const": 1000
+        }
+      },
+      "additionalProperties": false
+    },
+    "parameterAsset": {
+      "type": "object",
+      "required": [
+        "key",
+        "sha256",
+        "bytes"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^(media|repro)/v1/"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "format": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "initialFieldAsset": {
+      "type": "object",
+      "required": [
+        "key",
+        "sha256",
+        "bytes",
+        "format",
+        "width",
+        "height"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^(media|repro)/v1/"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "format": {
+          "enum": [
+            "json",
+            "npy",
+            "png",
+            "webp"
+          ]
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "value_min": {
+          "type": "number"
+        },
+        "value_max": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false
+    },
+    "overlayMedia": {
+      "type": "object",
+      "properties": {
+        "poster": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/posterAsset"
+            }
+          ]
+        },
+        "video": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/videoAsset"
+            }
+          ]
+        },
+        "parameters": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/parameterAsset"
+            }
+          ]
+        },
+        "initial_field": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/initialFieldAsset"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "featuredSearchResult": {
+      "type": "object",
+      "required": [
+        "provenance"
+      ],
+      "properties": {
+        "provenance": {
+          "type": "string",
+          "minLength": 1
+        },
+        "best_loss": {
+          "type": "number"
+        },
+        "best_loss_prompt": {
+          "type": "number"
+        },
+        "best_clip_score_prompt": {
+          "type": "number"
+        },
+        "best_loss_softmax": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false
+    },
+    "featuredPoint": {
+      "type": "object",
+      "required": [
+        "id",
+        "display_label",
+        "namespace",
+        "coordinates",
+        "source_reported_coordinates",
+        "coordinate_semantics",
+        "status",
+        "reviewed_at",
+        "refinement_neighborhood_id",
+        "media",
+        "search_result",
+        "score_warning",
+        "center_video_world_pixels",
+        "refinement_simulation_world_pixels",
+        "world_size_comparison_note"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "display_label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "namespace": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "coarse_point_id": {
+          "type": "string",
+          "pattern": "^triple_[0-9]{5}$"
+        },
+        "coordinates": {
+          "$ref": "#/$defs/coordinates"
+        },
+        "source_reported_coordinates": {
+          "$ref": "#/$defs/coordinates"
+        },
+        "coordinate_semantics": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "const": "self_replicator"
+        },
+        "reviewed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "refinement_neighborhood_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "media": {
+          "$ref": "#/$defs/overlayMedia"
+        },
+        "search_result": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/featuredSearchResult"
+            }
+          ]
+        },
+        "score_warning": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            }
+          ]
+        },
+        "center_video_world_pixels": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "integer",
+              "minimum": 1
+            }
+          ]
+        },
+        "refinement_simulation_world_pixels": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "integer",
+              "minimum": 1
+            }
+          ]
+        },
+        "world_size_comparison_note": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "featuredSample": {
+      "type": "object",
+      "required": [
+        "grid_index",
+        "coordinates",
+        "status"
+      ],
+      "properties": {
+        "grid_index": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "integer",
+              "minimum": 0
+            }
+          ],
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "coordinates": {
+          "$ref": "#/$defs/coordinates"
+        },
+        "status": {
+          "enum": [
+            "self_replicator",
+            "nonreplicator"
+          ]
+        },
+        "scan_index": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "variation_label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "media": {
+          "$ref": "#/$defs/overlayMedia"
+        }
+      },
+      "additionalProperties": false
+    },
+    "axes": {
+      "type": "object",
+      "required": [
+        "m_local",
+        "m_cross",
+        "alpha"
+      ],
+      "properties": {
+        "m_local": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "number"
+          }
+        },
+        "m_cross": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "number"
+          }
+        },
+        "alpha": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "number"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "featuredNeighborhood": {
+      "type": "object",
+      "required": [
+        "id",
+        "center_featured_id",
+        "axes",
+        "samples"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "center_featured_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "axes": {
+          "$ref": "#/$defs/axes"
+        },
+        "shared_media": {
+          "$ref": "#/$defs/overlayMedia"
+        },
+        "samples": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/featuredSample"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

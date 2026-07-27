@@ -1,5 +1,6 @@
 import type {
   DisplayStatus,
+  FeaturedCatalog,
   ReviewOverlay,
   SiteManifest,
 } from "../data";
@@ -12,6 +13,7 @@ export interface AlphaSidebarProps {
   selectedAlphaIndex: number | null;
   isLocalMode?: boolean;
   visibleStatuses?: ReadonlySet<DisplayStatus>;
+  featuredCatalog?: FeaturedCatalog | null;
   onSelectAlpha: (alphaIndex: number | null) => void;
 }
 
@@ -24,6 +26,7 @@ export function AlphaSidebar({
   selectedAlphaIndex,
   isLocalMode = false,
   visibleStatuses,
+  featuredCatalog,
   onSelectAlpha,
 }: AlphaSidebarProps) {
   const isFullCubeSelected =
@@ -77,6 +80,7 @@ export function AlphaSidebar({
                   reviewOverlay={reviewOverlay}
                   alphaIndex={alphaIndex}
                   visibleStatuses={visibleStatuses}
+                  featuredCatalog={featuredCatalog}
                 />
               </button>
             </div>

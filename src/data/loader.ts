@@ -1,10 +1,13 @@
 import {
+  assertFeaturedCatalogSemantics,
   assertManifestSemantics,
   assertRefinementCatalogSemantics,
   assertReviewOverlaySemantics,
 } from "./semantics";
+import { emptyFeaturedCatalog } from "./featured";
 import { assertCanonicalManifestIntegrity } from "./manifest-integrity";
 import type {
+  FeaturedCatalog,
   LatestPointer,
   LoadedSiteData,
   LoadSiteDataOptions,
@@ -21,6 +24,7 @@ import {
 } from "./urls";
 import {
   assertValidDocument,
+  validateFeaturedCatalog,
   validateLatestPointer,
   validateRefinementCatalog,
   validateReviewOverlay,
@@ -312,6 +316,47 @@ async function loadRefinementCatalog(
   }
 }
 
+async function loadFeaturedCatalog(
+  config: RuntimeConfig,
+  configUrl: URL,
+  manifest: SiteManifest,
+  fetcher: typeof fetch,
+  warnings: string[],
+  signal?: AbortSignal,
+): Promise<FeaturedCatalog> {
+  if (!config.featured_catalog_url) {
+    return emptyFeaturedCatalog(manifest.dataset_id);
+  }
+  try {
+    const url = resolveConfiguredUrl(
+      config.featured_catalog_url,
+      configUrl,
+      "Featured catalog URL",
+    );
+    const document = await fetchJsonDocument(
+      url,
+      fetcher,
+      "Featured catalog",
+      { cache: "no-store", signal },
+    );
+    assertValidDocument(
+      validateFeaturedCatalog,
+      document.value,
+      "Featured catalog",
+    );
+    assertFeaturedCatalogSemantics(document.value, manifest);
+    if (document.value.asset_base_url) {
+      normalizeAssetBaseUrl(document.value.asset_base_url);
+    }
+    return document.value;
+  } catch (error) {
+    warnings.push(
+      `Featured off-grid data is unavailable (${errorMessage(error)})`,
+    );
+    return emptyFeaturedCatalog(manifest.dataset_id);
+  }
+}
+
 function documentAssetBase(
   explicitBase: string | undefined,
   fallbackBase: URL,
@@ -399,12 +444,24 @@ export async function loadSiteData(
     warnings,
     options.signal,
   );
+  const featuredCatalog = await loadFeaturedCatalog(
+    config,
+    configUrl,
+    loadedManifest.manifest,
+    fetcher,
+    warnings,
+    options.signal,
+  );
   const reviewAssetBase = documentAssetBase(
     reviewOverlay.asset_base_url,
     assetBase,
   );
   const refinementAssetBase = documentAssetBase(
     refinementCatalog.asset_base_url,
+    assetBase,
+  );
+  const featuredAssetBase = documentAssetBase(
+    featuredCatalog.asset_base_url,
     assetBase,
   );
 
@@ -422,6 +479,9 @@ export async function loadSiteData(
     refinementCatalog,
     refinementAssetBaseUrl: refinementAssetBase.href,
     refinementAssetUrl: createAssetResolver(refinementAssetBase),
+    featuredCatalog,
+    featuredAssetBaseUrl: featuredAssetBase.href,
+    featuredAssetUrl: createAssetResolver(featuredAssetBase),
     warnings,
   };
 }

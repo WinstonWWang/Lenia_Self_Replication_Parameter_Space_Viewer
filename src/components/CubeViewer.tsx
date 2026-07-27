@@ -21,24 +21,31 @@ import * as THREE from "three";
 
 import type {
   DisplayStatus,
+  FeaturedCatalog,
+  FeaturedPoint,
+  ParameterCoordinates,
   RefinementCatalog,
-  RefinementNeighborhood,
-  RefinementSample,
   ReviewOverlay,
+  SelectedParameterPoint,
   SiteManifest,
 } from "../data";
+import { sameSelection, selectionKey } from "../data";
 import {
   buildAxisCells,
   buildRefinementBoundarySegments,
   buildRefinementCells,
+  makeFeaturedPointRenderData,
   makePointRenderData,
   nearestAxisIndex,
   normalizeAxisValue,
   REFINEMENT_NEGATIVE_COLOR,
-  refinementContainsAlpha,
+  refinementAlphaIndexForSlab,
   refinementToGlobalTransform,
+  renderDatumSelection,
   splitPointDataByAlpha,
   STATUS_COLORS,
+  type LocalNeighborhood,
+  type LocalSample,
   type PointRenderDatum,
   type RefinementCell,
   type WorldPosition,
@@ -48,17 +55,18 @@ export interface CubeViewerProps {
   manifest: SiteManifest;
   reviewOverlay?: ReviewOverlay | null;
   refinementCatalog?: RefinementCatalog | null;
-  selectedPointId: string | null;
-  selectedRefinementSample?: RefinementSample | null;
-  hoveredPointId: string | null;
+  featuredCatalog?: FeaturedCatalog | null;
+  selectedPoint: SelectedParameterPoint | null;
+  selectedLocalSample?: LocalSample | null;
+  hoveredPoint: SelectedParameterPoint | null;
   pinnedAlphaIndex: number | null;
   previewAlphaIndex: number | null;
-  onSelectPoint: (pointId: string) => void;
-  onHoverPoint: (pointId: string | null) => void;
+  onSelectPoint: (point: SelectedParameterPoint) => void;
+  onHoverPoint: (point: SelectedParameterPoint | null) => void;
   onPinnedAlphaChange: (alphaIndex: number | null) => void;
   onPreviewAlphaChange: (alphaIndex: number | null) => void;
-  onSelectRefinementSample?: (sample: RefinementSample | null) => void;
-  onHoverRefinementSample?: (sample: RefinementSample | null) => void;
+  onSelectLocalSample?: (sample: LocalSample | null) => void;
+  onHoverLocalSample?: (sample: LocalSample | null) => void;
   localModeEnabled?: boolean;
   visibleStatuses?: ReadonlySet<DisplayStatus>;
   className?: string;
@@ -70,9 +78,9 @@ interface PointCloudProps {
   opacity: number;
   pointSize?: number;
   pickable?: boolean;
-  hoveredPointId: string | null;
-  onHoverPoint: (pointId: string | null) => void;
-  onSelectPoint: (pointId: string) => void;
+  hoveredPoint: SelectedParameterPoint | null;
+  onHoverPoint: (point: SelectedParameterPoint | null) => void;
+  onSelectPoint: (point: SelectedParameterPoint) => void;
   renderOrder?: number;
   depthTest?: boolean;
   depthWrite?: boolean;
@@ -223,7 +231,7 @@ function PointCloud({
   opacity,
   pointSize = 20,
   pickable = true,
-  hoveredPointId,
+  hoveredPoint,
   onHoverPoint,
   onSelectPoint,
   renderOrder = 0,
@@ -289,13 +297,16 @@ function PointCloud({
         const datum = pointForEvent(event);
         if (!datum) return;
         event.stopPropagation();
-        onSelectPoint(datum.id);
+        onSelectPoint(renderDatumSelection(datum));
       }}
       onPointerMove={(event) => {
         const datum = pointForEvent(event);
         if (!datum) return;
         event.stopPropagation();
-        if (hoveredPointId !== datum.id) onHoverPoint(datum.id);
+        const selection = renderDatumSelection(datum);
+        if (!sameSelection(hoveredPoint, selection)) {
+          onHoverPoint(selection);
+        }
       }}
       onPointerOut={() => {
         if (pickable) onHoverPoint(null);
@@ -848,9 +859,25 @@ function CameraRig({
 
 function SelectionMarker({
   position,
+  flat = false,
 }: {
   position: WorldPosition;
+  flat?: boolean;
 }): React.JSX.Element {
+  if (flat) {
+    return (
+      <mesh position={position} renderOrder={5}>
+        <ringGeometry args={[0.039, 0.052, 32]} />
+        <meshBasicMaterial
+          color="#ffffff"
+          depthTest={false}
+          opacity={0.95}
+          side={THREE.DoubleSide}
+          transparent
+        />
+      </mesh>
+    );
+  }
   return (
     <mesh position={position} renderOrder={5}>
       <sphereGeometry args={[0.052, 12, 8]} />
@@ -870,7 +897,9 @@ function PointTooltip({
 }: {
   datum: PointRenderDatum;
 }): React.JSX.Element {
-  const { coordinates } = datum.point;
+  const { coordinates } = datum;
+  const formatCoordinate = (value: number) =>
+    datum.kind === "featured" ? value.toString() : value.toFixed(4);
   return (
     <Html
       center
@@ -879,8 +908,12 @@ function PointTooltip({
       zIndexRange={[4, 0]}
     >
       <div className="cube-viewer__tooltip" style={tooltipStyle}>
-        (m<sub>ℓ</sub> = {coordinates.m_local.toFixed(4)}, m<sub>c</sub> ={" "}
-        {coordinates.m_cross.toFixed(4)}, α = {coordinates.alpha.toFixed(4)})
+        {datum.kind === "featured" && (
+          <div>Featured off-grid · {datum.point.display_label}</div>
+        )}
+        (m<sub>ℓ</sub> = {formatCoordinate(coordinates.m_local)}, m
+        <sub>c</sub> = {formatCoordinate(coordinates.m_cross)}, α ={" "}
+        {formatCoordinate(coordinates.alpha)})
       </div>
     </Html>
   );
@@ -970,16 +1003,20 @@ function RefinementView({
   neighborhood,
   activeAlphaIndex,
   selectedSample,
+  centerCoordinates,
+  exactCoordinateLabels = false,
   showFaded = true,
   onHoverSample,
   onSelectSample,
 }: {
-  neighborhood: RefinementNeighborhood;
+  neighborhood: LocalNeighborhood;
   activeAlphaIndex: number | null;
-  selectedSample: RefinementSample | null;
+  selectedSample: LocalSample | null;
+  centerCoordinates?: ParameterCoordinates;
+  exactCoordinateLabels?: boolean;
   showFaded?: boolean;
-  onHoverSample: (sample: RefinementSample | null) => void;
-  onSelectSample: (sample: RefinementSample) => void;
+  onHoverSample: (sample: LocalSample | null) => void;
+  onSelectSample: (sample: LocalSample) => void;
 }): React.JSX.Element {
   const [hoveredCell, setHoveredCell] = useState<RefinementCell | null>(null);
   const cells = useMemo(
@@ -1010,7 +1047,16 @@ function RefinementView({
           cell.sample.grid_index[1] === selectedSample.grid_index[1] &&
           cell.sample.grid_index[2] === selectedSample.grid_index[2],
       )
-    : null;
+    : centerCoordinates
+      ? visibleCells.find(
+          (cell) =>
+            cell.sample.coordinates.m_local ===
+              centerCoordinates.m_local &&
+            cell.sample.coordinates.m_cross ===
+              centerCoordinates.m_cross &&
+            cell.sample.coordinates.alpha === centerCoordinates.alpha,
+        )
+      : null;
   const visibleHoveredCell = hoveredCell
     ? visibleCells.find(
         (cell) =>
@@ -1077,11 +1123,24 @@ function RefinementView({
           zIndexRange={[4, 0]}
         >
           <div className="cube-viewer__tooltip" style={tooltipStyle}>
+            {"variation_label" in visibleHoveredCell.sample &&
+              visibleHoveredCell.sample.variation_label && (
+                <div>{visibleHoveredCell.sample.variation_label}</div>
+            )}
             (m<sub>ℓ</sub> ={" "}
-            {visibleHoveredCell.sample.coordinates.m_local.toFixed(5)}, m
+            {exactCoordinateLabels
+              ? visibleHoveredCell.sample.coordinates.m_local.toString()
+              : visibleHoveredCell.sample.coordinates.m_local.toFixed(5)}
+            , m
             <sub>c</sub> ={" "}
-            {visibleHoveredCell.sample.coordinates.m_cross.toFixed(5)}, α ={" "}
-            {visibleHoveredCell.sample.coordinates.alpha.toFixed(5)})
+            {exactCoordinateLabels
+              ? visibleHoveredCell.sample.coordinates.m_cross.toString()
+              : visibleHoveredCell.sample.coordinates.m_cross.toFixed(5)}
+            , α ={" "}
+            {exactCoordinateLabels
+              ? visibleHoveredCell.sample.coordinates.alpha.toString()
+              : visibleHoveredCell.sample.coordinates.alpha.toFixed(5)}
+            )
           </div>
         </Html>
       )}
@@ -1093,26 +1152,36 @@ function ParameterScene({
   manifest,
   reviewOverlay,
   refinementCatalog,
-  selectedPointId,
-  selectedRefinementSample = null,
-  hoveredPointId,
+  featuredCatalog,
+  selectedPoint,
+  selectedLocalSample = null,
+  hoveredPoint,
   pinnedAlphaIndex,
   previewAlphaIndex,
   onSelectPoint,
   onHoverPoint,
   onPinnedAlphaChange,
   onPreviewAlphaChange,
-  onSelectRefinementSample,
-  onHoverRefinementSample,
+  onSelectLocalSample,
+  onHoverLocalSample,
   localModeEnabled = true,
   visibleStatuses,
 }: Omit<CubeViewerProps, "className" | "showLegend">): React.JSX.Element {
   const pointData = useMemo(
-    () => makePointRenderData(manifest, reviewOverlay),
-    [manifest, reviewOverlay],
+    () => [
+      ...makePointRenderData(manifest, reviewOverlay),
+      ...makeFeaturedPointRenderData(manifest, featuredCatalog),
+    ],
+    [featuredCatalog, manifest, reviewOverlay],
   );
-  const pointById = useMemo(
-    () => new Map(pointData.map((datum) => [datum.id, datum])),
+  const pointBySelection = useMemo(
+    () =>
+      new Map(
+        pointData.map((datum) => [
+          selectionKey(renderDatumSelection(datum)),
+          datum,
+        ]),
+      ),
     [pointData],
   );
   const visiblePointData = useMemo(
@@ -1123,13 +1192,23 @@ function ParameterScene({
     [pointData, visibleStatuses],
   );
   const selectedDatum =
-    selectedPointId === null ? null : (pointById.get(selectedPointId) ?? null);
+    selectedPoint === null
+      ? null
+      : (pointBySelection.get(selectionKey(selectedPoint)) ?? null);
+  const selectedFeaturedPoint =
+    selectedPoint?.kind === "featured"
+      ? (featuredCatalog?.featured_points.find(
+          (point) => point.id === selectedPoint.id,
+        ) ?? null)
+      : null;
   const selectedStatusVisible =
     selectedDatum === null ||
     visibleStatuses === undefined ||
     visibleStatuses.has(selectedDatum.status);
   const hoveredDatum =
-    hoveredPointId === null ? null : (pointById.get(hoveredPointId) ?? null);
+    hoveredPoint === null
+      ? null
+      : (pointBySelection.get(selectionKey(hoveredPoint)) ?? null);
   const effectiveAlphaIndex = pinnedAlphaIndex ?? previewAlphaIndex;
   const validAlphaIndex =
     effectiveAlphaIndex !== null &&
@@ -1149,24 +1228,31 @@ function ParameterScene({
     [isPinnedAlphaSlice, validAlphaIndex, visiblePointData],
   );
   const neighborhood =
-    selectedStatusVisible && selectedDatum?.status === "self_replicator"
-      ? (refinementCatalog?.neighborhoods.find(
-          (candidate) => candidate.center_point_id === selectedDatum.id,
+    selectedStatusVisible && selectedPoint?.kind === "featured"
+      ? (featuredCatalog?.neighborhoods.find(
+          (candidate) =>
+            candidate.center_featured_id === selectedPoint.id,
         ) ?? null)
-      : null;
+      : selectedStatusVisible &&
+          selectedPoint?.kind === "coarse" &&
+          selectedDatum?.status === "self_replicator"
+        ? (refinementCatalog?.neighborhoods.find(
+            (candidate) =>
+              candidate.center_point_id === selectedPoint.id,
+          ) ?? null)
+        : null;
   const targetAlpha =
     validAlphaIndex === null
       ? null
       : manifest.axes.alpha.values[validAlphaIndex] ?? null;
   const localAlphaIndex =
-    neighborhood &&
-    targetAlpha !== null &&
-    refinementContainsAlpha(
+    neighborhood && validAlphaIndex !== null
+      ? refinementAlphaIndexForSlab(
       neighborhood,
-      targetAlpha,
       manifest.axes.alpha.values,
-    )
-      ? nearestAxisIndex(neighborhood.axes.alpha, targetAlpha)
+          validAlphaIndex,
+          selectedFeaturedPoint?.coordinates.alpha,
+        )
       : null;
   const globalSliceZ =
     validAlphaIndex === null
@@ -1187,12 +1273,16 @@ function ParameterScene({
     localMode && isPinnedAlphaSlice && localAlphaIndex !== null;
   const globalRefinementTransform =
     neighborhood && !localMode && localAlphaIndex !== null
-      ? refinementToGlobalTransform(neighborhood, manifest.axes)
+      ? refinementToGlobalTransform(
+          neighborhood,
+          manifest.axes,
+          selectedFeaturedPoint?.coordinates,
+        )
       : null;
   const visibleHoveredDatum =
     hoveredDatum &&
     (!isPinnedAlphaSlice ||
-      hoveredDatum.point.grid_index[2] === validAlphaIndex)
+      hoveredDatum.alphaIndex === validAlphaIndex)
       ? hoveredDatum
       : null;
   const cameraMode: CameraRigProps["mode"] = localMode
@@ -1222,11 +1312,16 @@ function ParameterScene({
           )}
           <RefinementView
             activeAlphaIndex={localAlphaIndex}
+            centerCoordinates={
+              selectedFeaturedPoint?.coordinates ??
+              selectedDatum?.coordinates
+            }
+            exactCoordinateLabels={selectedPoint?.kind === "featured"}
             neighborhood={neighborhood}
-            selectedSample={selectedRefinementSample}
+            selectedSample={selectedLocalSample}
             showFaded={!isPinnedLocalSlice}
-            onHoverSample={(sample) => onHoverRefinementSample?.(sample)}
-            onSelectSample={(sample) => onSelectRefinementSample?.(sample)}
+            onHoverSample={(sample) => onHoverLocalSample?.(sample)}
+            onSelectSample={(sample) => onSelectLocalSample?.(sample)}
           />
           {localAlphaIndex !== null && !isPinnedLocalSlice && (
             <SlicePlane z={localSliceZ} />
@@ -1239,7 +1334,7 @@ function ParameterScene({
             <PointCloud
               data={splitData.faded}
               depthWrite={false}
-              hoveredPointId={hoveredPointId}
+              hoveredPoint={hoveredPoint}
               opacity={0.2}
               pickable={false}
               pointSize={20}
@@ -1252,7 +1347,7 @@ function ParameterScene({
             data={splitData.active}
             depthTest={validAlphaIndex === null}
             depthWrite={validAlphaIndex === null}
-            hoveredPointId={hoveredPointId}
+            hoveredPoint={hoveredPoint}
             opacity={1}
             pointSize={20}
             renderOrder={validAlphaIndex === null ? 1 : 3}
@@ -1273,15 +1368,18 @@ function ParameterScene({
               >
                 <RefinementView
                   activeAlphaIndex={localAlphaIndex}
+                  centerCoordinates={
+                    selectedFeaturedPoint?.coordinates ??
+                    selectedDatum?.coordinates
+                  }
+                  exactCoordinateLabels={
+                    selectedPoint?.kind === "featured"
+                  }
                   neighborhood={neighborhood}
-                  selectedSample={selectedRefinementSample}
+                  selectedSample={selectedLocalSample}
                   showFaded={false}
-                  onHoverSample={(sample) =>
-                    onHoverRefinementSample?.(sample)
-                  }
-                  onSelectSample={(sample) =>
-                    onSelectRefinementSample?.(sample)
-                  }
+                  onHoverSample={(sample) => onHoverLocalSample?.(sample)}
+                  onSelectSample={(sample) => onSelectLocalSample?.(sample)}
                 />
               </group>
             )}
@@ -1297,8 +1395,11 @@ function ParameterScene({
           {selectedDatum &&
             selectedStatusVisible &&
             (!isPinnedAlphaSlice ||
-              selectedDatum.point.grid_index[2] === validAlphaIndex) && (
-              <SelectionMarker position={selectedDatum.position} />
+              selectedDatum.alphaIndex === validAlphaIndex) && (
+              <SelectionMarker
+                flat={isPinnedAlphaSlice}
+                position={selectedDatum.position}
+              />
             )}
           {visibleHoveredDatum && <PointTooltip datum={visibleHoveredDatum} />}
         </>
@@ -1311,28 +1412,61 @@ export function CubeViewer({
   manifest,
   reviewOverlay = null,
   refinementCatalog = null,
-  selectedPointId,
-  selectedRefinementSample = null,
-  hoveredPointId,
+  featuredCatalog = null,
+  selectedPoint,
+  selectedLocalSample = null,
+  hoveredPoint,
   pinnedAlphaIndex,
   previewAlphaIndex,
   onSelectPoint,
   onHoverPoint,
   onPinnedAlphaChange,
   onPreviewAlphaChange,
-  onSelectRefinementSample,
-  onHoverRefinementSample,
+  onSelectLocalSample,
+  onHoverLocalSample,
   localModeEnabled = true,
   visibleStatuses,
   className,
   showLegend = false,
 }: CubeViewerProps): React.JSX.Element {
-  const hoveredPoint = useMemo(
-    () =>
-      hoveredPointId === null
-        ? null
-        : (manifest.points.find((point) => point.id === hoveredPointId) ?? null),
-    [hoveredPointId, manifest.points],
+  const hoveredPointDetails = useMemo(
+    () => {
+      if (hoveredPoint === null) return null;
+      if (hoveredPoint.kind === "coarse") {
+        const point =
+          manifest.points.find((candidate) => candidate.id === hoveredPoint.id) ??
+          null;
+        return point
+          ? {
+              id: point.id,
+              label: point.id,
+              coordinates: point.coordinates,
+              alphaIndex: point.grid_index[2],
+            }
+          : null;
+      }
+      const point =
+        featuredCatalog?.featured_points.find(
+          (candidate) => candidate.id === hoveredPoint.id,
+        ) ?? null;
+      return point
+        ? {
+            id: point.id,
+            label: `Featured off-grid ${point.display_label}`,
+            coordinates: point.coordinates,
+            alphaIndex: nearestAxisIndex(
+              manifest.axes.alpha.values,
+              point.coordinates.alpha,
+            ),
+          }
+        : null;
+    },
+    [
+      featuredCatalog?.featured_points,
+      hoveredPoint,
+      manifest.axes.alpha.values,
+      manifest.points,
+    ],
   );
   const pinnedAlphaValue =
     pinnedAlphaIndex !== null &&
@@ -1341,11 +1475,38 @@ export function CubeViewer({
       ? (manifest.axes.alpha.values[pinnedAlphaIndex] ?? null)
       : null;
   const visibleHoveredPoint =
-    hoveredPoint &&
+    hoveredPointDetails &&
     (pinnedAlphaValue === null ||
-      hoveredPoint.grid_index[2] === pinnedAlphaIndex)
-      ? hoveredPoint
+      hoveredPointDetails.alphaIndex === pinnedAlphaIndex)
+      ? hoveredPointDetails
       : null;
+  const selectedFeaturedPoint =
+    selectedPoint?.kind === "featured"
+      ? (featuredCatalog?.featured_points.find(
+          (point) => point.id === selectedPoint.id,
+        ) ?? null)
+      : null;
+  const selectedFeaturedNeighborhood = selectedFeaturedPoint
+    ? (featuredCatalog?.neighborhoods.find(
+        (neighborhood) =>
+          neighborhood.center_featured_id === selectedFeaturedPoint.id,
+      ) ?? null)
+    : null;
+  const selectedFeaturedFineAlphaIndex =
+    selectedFeaturedNeighborhood && pinnedAlphaIndex !== null
+      ? refinementAlphaIndexForSlab(
+          selectedFeaturedNeighborhood,
+          manifest.axes.alpha.values,
+          pinnedAlphaIndex,
+          selectedFeaturedPoint?.coordinates.alpha,
+        )
+      : null;
+  const selectedFeaturedFineAlpha =
+    selectedFeaturedFineAlphaIndex === null
+      ? null
+      : (selectedFeaturedNeighborhood?.axes.alpha[
+          selectedFeaturedFineAlphaIndex
+        ] ?? null);
   return (
     <section
       className={["cube-viewer", className].filter(Boolean).join(" ")}
@@ -1361,8 +1522,20 @@ export function CubeViewer({
       {showLegend && <CubeLegend />}
       <div aria-live="polite" style={screenReaderOnlyStyle}>
         {visibleHoveredPoint
-          ? `Hovered parameter point ${visibleHoveredPoint.id}: m local ${visibleHoveredPoint.coordinates.m_local}, m cross ${visibleHoveredPoint.coordinates.m_cross}, alpha ${visibleHoveredPoint.coordinates.alpha}.`
+          ? `Hovered parameter point ${visibleHoveredPoint.label}: m local ${visibleHoveredPoint.coordinates.m_local}, m cross ${visibleHoveredPoint.coordinates.m_cross}, alpha ${visibleHoveredPoint.coordinates.alpha}.`
           : ""}
+      </div>
+      <div
+        className="cube-viewer__refinement-status"
+        style={screenReaderOnlyStyle}
+      >
+        {selectedFeaturedPoint && localModeEnabled
+          ? `Featured local neighborhood for ${selectedFeaturedPoint.display_label} is displayed. The white marker identifies its selected center or variation. White lines mark the boundary between manually classified sampled outcomes.`
+          : selectedFeaturedPoint &&
+              pinnedAlphaValue !== null &&
+              selectedFeaturedFineAlpha !== null
+            ? `Featured neighborhood plane at exact alpha ${selectedFeaturedFineAlpha.toString()} is displayed within coarse alpha slab ${pinnedAlphaValue.toString()}. White lines mark the boundary between manually classified sampled outcomes.`
+            : ""}
       </div>
       <Canvas
         aria-label={
@@ -1391,24 +1564,25 @@ export function CubeViewer({
         }}
         onPointerMissed={() => {
           onHoverPoint(null);
-          onSelectRefinementSample?.(null);
+          onSelectLocalSample?.(null);
         }}
       >
         <ParameterScene
           manifest={manifest}
           reviewOverlay={reviewOverlay}
           refinementCatalog={refinementCatalog}
-          selectedPointId={selectedPointId}
-          selectedRefinementSample={selectedRefinementSample}
-          hoveredPointId={hoveredPointId}
+          featuredCatalog={featuredCatalog}
+          selectedPoint={selectedPoint}
+          selectedLocalSample={selectedLocalSample}
+          hoveredPoint={hoveredPoint}
           pinnedAlphaIndex={pinnedAlphaIndex}
           previewAlphaIndex={previewAlphaIndex}
           onSelectPoint={onSelectPoint}
           onHoverPoint={onHoverPoint}
           onPinnedAlphaChange={onPinnedAlphaChange}
           onPreviewAlphaChange={onPreviewAlphaChange}
-          onSelectRefinementSample={onSelectRefinementSample}
-          onHoverRefinementSample={onHoverRefinementSample}
+          onSelectLocalSample={onSelectLocalSample}
+          onHoverLocalSample={onHoverLocalSample}
           localModeEnabled={localModeEnabled}
           visibleStatuses={visibleStatuses}
         />

@@ -3,9 +3,11 @@ import Ajv2020, {
   type ValidateFunction,
 } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
+import featuredCatalogSchema from "../../schemas/featured-catalog.schema.json";
 import latestPointerSchema from "../../schemas/latest-pointer.schema.json";
 import siteManifestSchema from "../../schemas/site-manifest.schema.json";
 import type {
+  FeaturedCatalog,
   LatestPointer,
   RefinementCatalog,
   ReviewOverlay,
@@ -34,6 +36,7 @@ const runtimeConfigSchema = {
     fallback_asset_base_url: { type: "string", minLength: 1 },
     review_overlay_url: { type: "string", minLength: 1 },
     refinement_catalog_url: { type: "string", minLength: 1 },
+    featured_catalog_url: { type: "string", minLength: 1 },
     refresh_interval_seconds: {
       type: "number",
       minimum: 1,
@@ -344,6 +347,9 @@ export const validateReviewOverlay = ajv.compile<ReviewOverlay>(
 );
 export const validateRefinementCatalog = ajv.compile<RefinementCatalog>(
   refinementCatalogSchema,
+);
+export const validateFeaturedCatalog = ajv.compile<FeaturedCatalog>(
+  featuredCatalogSchema,
 );
 
 function describeError(error: ErrorObject): string {

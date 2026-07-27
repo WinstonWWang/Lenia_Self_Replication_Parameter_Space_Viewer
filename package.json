@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build",
+    "check:featured-fixture": "node scripts/validate-featured-catalog.mjs tests/fixtures/featured-catalog-minimal.json --media-root public",
     "check:public": "node scripts/check-public.mjs",
+    "validate:featured": "node scripts/validate-featured-catalog.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "qa:browser": "node scripts/browser-qa.mjs",
     "test": "vitest run",

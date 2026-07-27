@@ -1,6 +1,9 @@
 import type {
   AssetDescriptor,
+  FeaturedCatalog,
+  FeaturedPoint,
   OverlayMedia,
+  ParameterCoordinates,
   RefinementCatalog,
   ReviewOverlay,
   SiteManifest,
@@ -61,6 +64,15 @@ function collectAssetIssues(
     if (!isSafeAssetKey(asset.key)) {
       issues.push(`${label}.${kind} has an unsafe asset key`);
     }
+    const filename = asset.key.split("/").at(-1) ?? "";
+    const extensionIndex = filename.lastIndexOf(".");
+    const stem =
+      extensionIndex > 0 ? filename.slice(0, extensionIndex) : filename;
+    if (stem !== asset.sha256) {
+      issues.push(
+        `${label}.${kind} filename stem must equal its SHA-256`,
+      );
+    }
     if (
       kind === "initial_field" &&
       initialFieldSize !== undefined &&
@@ -96,6 +108,37 @@ function containsForbiddenPublicText(value: unknown): boolean {
     }
   }
   return false;
+}
+
+function coordinatesEqual(
+  left: ParameterCoordinates,
+  right: ParameterCoordinates,
+): boolean {
+  return (
+    left.m_local === right.m_local &&
+    left.m_cross === right.m_cross &&
+    left.alpha === right.alpha
+  );
+}
+
+function coordinatesWithinManifestBounds(
+  coordinates: ParameterCoordinates,
+  manifest: SiteManifest,
+): boolean {
+  const mLocal = manifest.axes.m_local.values;
+  const mCross = manifest.axes.m_cross.values;
+  const alpha = manifest.axes.alpha.values;
+  return (
+    Number.isFinite(coordinates.m_local) &&
+    Number.isFinite(coordinates.m_cross) &&
+    Number.isFinite(coordinates.alpha) &&
+    coordinates.m_local >= mLocal[0] &&
+    coordinates.m_local <= mLocal[mLocal.length - 1] &&
+    coordinates.m_cross >= mCross[0] &&
+    coordinates.m_cross <= mCross[mCross.length - 1] &&
+    coordinates.alpha >= alpha[0] &&
+    coordinates.alpha <= alpha[alpha.length - 1]
+  );
 }
 
 export function getManifestSemanticIssues(
@@ -484,5 +527,258 @@ export function assertRefinementCatalogSemantics(
   const issues = getRefinementCatalogSemanticIssues(catalog, manifest);
   if (issues.length > 0) {
     throw new SemanticValidationError("Refinement catalog", issues);
+  }
+}
+
+export function getFeaturedCatalogSemanticIssues(
+  catalog: FeaturedCatalog,
+  manifest: SiteManifest,
+): string[] {
+  const issues: string[] = [];
+  const manifestPoints = new Map(
+    manifest.points.map((point) => [point.id, point] as const),
+  );
+  const pointsById = new Map<string, FeaturedPoint>();
+  const neighborhoodIds = new Set<string>();
+  const centerFeaturedIds = new Set<string>();
+  const coarsePointIds = new Set<string>();
+
+  if (catalog.dataset_id !== manifest.dataset_id) {
+    issues.push("featured catalog dataset_id does not match the manifest");
+  }
+  if (
+    catalog.based_on_manifest_sha256 !== undefined &&
+    catalog.based_on_manifest_sha256 !== manifest.manifest_sha256
+  ) {
+    issues.push("featured catalog targets a different manifest snapshot");
+  }
+  for (const point of catalog.featured_points) {
+    if (pointsById.has(point.id)) {
+      issues.push(`duplicate featured point id ${point.id}`);
+    }
+    pointsById.set(point.id, point);
+    if (manifestPoints.has(point.id)) {
+      issues.push(
+        `featured point id ${point.id} collides with a canonical point id`,
+      );
+    }
+
+    if (!coordinatesWithinManifestBounds(point.coordinates, manifest)) {
+      issues.push(`${point.id} coordinates are outside displayed bounds`);
+    }
+    if (
+      !coordinatesWithinManifestBounds(
+        point.source_reported_coordinates,
+        manifest,
+      )
+    ) {
+      issues.push(
+        `${point.id} source-reported coordinates are outside displayed bounds`,
+      );
+    }
+    if (point.media) {
+      collectAssetIssues(
+        point.media,
+        `featured point ${point.id}`,
+        issues,
+        manifest.search_configuration.field_size,
+      );
+    }
+    if (
+      point.search_result?.best_loss_prompt !== undefined &&
+      point.search_result.best_clip_score_prompt !== undefined &&
+      Math.abs(
+        point.search_result.best_clip_score_prompt +
+          point.search_result.best_loss_prompt,
+      ) > 1e-9
+    ) {
+      issues.push(
+        `${point.id} best_clip_score_prompt must equal -best_loss_prompt`,
+      );
+    }
+
+    if (point.coarse_point_id !== undefined) {
+      const coarsePoint = manifestPoints.get(point.coarse_point_id);
+      if (!coarsePoint) {
+        issues.push(
+          `${point.id} references unknown canonical point ${point.coarse_point_id}`,
+        );
+      } else if (!coordinatesEqual(point.coordinates, coarsePoint.coordinates)) {
+        issues.push(
+          `${point.id} coordinates do not match canonical center ${point.coarse_point_id}`,
+        );
+      }
+      if (coarsePointIds.has(point.coarse_point_id)) {
+        issues.push(
+          `duplicate featured canonical center ${point.coarse_point_id}`,
+        );
+      }
+      coarsePointIds.add(point.coarse_point_id);
+    }
+  }
+
+  for (const neighborhood of catalog.neighborhoods) {
+    if (neighborhoodIds.has(neighborhood.id)) {
+      issues.push(`duplicate featured neighborhood ${neighborhood.id}`);
+    }
+    neighborhoodIds.add(neighborhood.id);
+    if (centerFeaturedIds.has(neighborhood.center_featured_id)) {
+      issues.push(
+        `duplicate featured neighborhood center ${neighborhood.center_featured_id}`,
+      );
+    }
+    centerFeaturedIds.add(neighborhood.center_featured_id);
+
+    const center = pointsById.get(neighborhood.center_featured_id);
+    if (!center) {
+      issues.push(
+        `featured neighborhood ${neighborhood.id} has an unknown center`,
+      );
+    } else {
+      if (center.refinement_neighborhood_id !== neighborhood.id) {
+        issues.push(
+          `featured neighborhood ${neighborhood.id} does not resolve back from ${center.id}`,
+        );
+      }
+    }
+
+    if (neighborhood.shared_media) {
+      collectAssetIssues(
+        neighborhood.shared_media,
+        `featured neighborhood ${neighborhood.id} shared media`,
+        issues,
+        manifest.search_configuration.field_size,
+      );
+    }
+
+    const axes = neighborhood.axes;
+    for (const name of ["m_local", "m_cross", "alpha"] as const) {
+      const values = axes[name];
+      if (!isStrictlyIncreasing(values)) {
+        issues.push(
+          `featured neighborhood ${neighborhood.id} axis ${name} must be finite and strictly increasing`,
+        );
+      }
+      const manifestValues = manifest.axes[name].values;
+      const lower = manifestValues[0];
+      const upper = manifestValues[manifestValues.length - 1];
+      if (
+        values.some(
+          (value) =>
+            !Number.isFinite(value) || value < lower || value > upper,
+        )
+      ) {
+        issues.push(
+          `featured neighborhood ${neighborhood.id} axis ${name} is outside displayed bounds`,
+        );
+      }
+    }
+
+    const sampleIndices = new Set<string>();
+    const scanIndices = new Set<number>();
+    let centerSampleCount = 0;
+    for (const sample of neighborhood.samples) {
+      const [i, j, k] = sample.grid_index;
+      const key = `${i},${j},${k}`;
+      if (
+        i < 0 ||
+        j < 0 ||
+        k < 0 ||
+        i >= axes.m_local.length ||
+        j >= axes.m_cross.length ||
+        k >= axes.alpha.length
+      ) {
+        issues.push(
+          `featured neighborhood ${neighborhood.id} sample ${key} is outside its axes`,
+        );
+      } else if (
+        sample.coordinates.m_local !== axes.m_local[i] ||
+        sample.coordinates.m_cross !== axes.m_cross[j] ||
+        sample.coordinates.alpha !== axes.alpha[k]
+      ) {
+        issues.push(
+          `featured neighborhood ${neighborhood.id} sample ${key} coordinates do not match its indices`,
+        );
+      }
+      if (
+        !coordinatesWithinManifestBounds(sample.coordinates, manifest)
+      ) {
+        issues.push(
+          `featured neighborhood ${neighborhood.id} sample ${key} is outside displayed bounds`,
+        );
+      }
+      if (sampleIndices.has(key)) {
+        issues.push(
+          `featured neighborhood ${neighborhood.id} has duplicate sample ${key}`,
+        );
+      }
+      sampleIndices.add(key);
+      if (sample.scan_index !== undefined) {
+        if (scanIndices.has(sample.scan_index)) {
+          issues.push(
+            `featured neighborhood ${neighborhood.id} has duplicate scan index ${sample.scan_index}`,
+          );
+        }
+        scanIndices.add(sample.scan_index);
+      }
+      if (sample.media) {
+        collectAssetIssues(
+          sample.media,
+          `featured neighborhood ${neighborhood.id} sample ${key}`,
+          issues,
+          manifest.search_configuration.field_size,
+        );
+      }
+      if (center && coordinatesEqual(sample.coordinates, center.coordinates)) {
+        centerSampleCount += 1;
+        if (sample.status !== "self_replicator") {
+          issues.push(
+            `featured neighborhood ${neighborhood.id} center sample must be self_replicator`,
+          );
+        }
+        if (sample.variation_label !== undefined) {
+          issues.push(
+            `featured neighborhood ${neighborhood.id} center sample must not have a variation label`,
+          );
+        }
+      }
+    }
+    if (center && centerSampleCount !== 1) {
+      issues.push(
+        `featured neighborhood ${neighborhood.id} must contain exactly one center sample`,
+      );
+    }
+  }
+
+  for (const point of catalog.featured_points) {
+    const neighborhood = catalog.neighborhoods.find(
+      (candidate) => candidate.id === point.refinement_neighborhood_id,
+    );
+    if (!neighborhood) {
+      issues.push(
+        `${point.id} references unknown featured neighborhood ${point.refinement_neighborhood_id}`,
+      );
+    } else if (neighborhood.center_featured_id !== point.id) {
+      issues.push(
+        `${point.id} refinement neighborhood resolves to a different center`,
+      );
+    }
+  }
+
+  if (containsForbiddenPublicText(catalog)) {
+    issues.push(
+      "featured catalog contains a forbidden private-path or secret pattern",
+    );
+  }
+  return issues;
+}
+
+export function assertFeaturedCatalogSemantics(
+  catalog: FeaturedCatalog,
+  manifest: SiteManifest,
+): void {
+  const issues = getFeaturedCatalogSemanticIssues(catalog, manifest);
+  if (issues.length > 0) {
+    throw new SemanticValidationError("Featured catalog", issues);
   }
 }

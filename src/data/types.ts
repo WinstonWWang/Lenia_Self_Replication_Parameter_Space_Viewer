@@ -256,6 +256,7 @@ export interface RuntimeConfig {
   fallback_asset_base_url: string;
   review_overlay_url?: string;
   refinement_catalog_url?: string;
+  featured_catalog_url?: string;
   refresh_interval_seconds: number;
 }
 
@@ -314,6 +315,60 @@ export interface RefinementCatalog {
   neighborhoods: RefinementNeighborhood[];
 }
 
+export interface FeaturedSearchResult {
+  provenance: string;
+  best_loss?: number;
+  best_loss_prompt?: number;
+  best_clip_score_prompt?: number;
+  best_loss_softmax?: number;
+}
+
+export interface FeaturedPoint {
+  id: string;
+  display_label: string;
+  namespace: string;
+  coarse_point_id?: string;
+  coordinates: ParameterCoordinates;
+  source_reported_coordinates: ParameterCoordinates;
+  coordinate_semantics: string;
+  status: "self_replicator";
+  reviewed_at: string;
+  refinement_neighborhood_id: string;
+  media: OverlayMedia;
+  search_result: FeaturedSearchResult | null;
+  score_warning: string | null;
+  center_video_world_pixels: number | null;
+  refinement_simulation_world_pixels: number | null;
+  world_size_comparison_note: string | null;
+}
+
+export interface FeaturedSample {
+  grid_index: GridIndex;
+  coordinates: ParameterCoordinates;
+  status: ManualReviewStatus;
+  scan_index?: number;
+  variation_label?: string;
+  media?: OverlayMedia;
+}
+
+export interface FeaturedNeighborhood {
+  id: string;
+  center_featured_id: string;
+  axes: RefinementAxes;
+  shared_media?: OverlayMedia;
+  samples: FeaturedSample[];
+}
+
+export interface FeaturedCatalog {
+  schema_version: 1;
+  dataset_id: string;
+  generated_at?: string;
+  asset_base_url?: string;
+  based_on_manifest_sha256?: Sha256;
+  featured_points: FeaturedPoint[];
+  neighborhoods: FeaturedNeighborhood[];
+}
+
 export type DisplayStatus =
   | "physically_uninteresting"
   | "experimentally_dead"
@@ -345,6 +400,9 @@ export interface LoadedSiteData {
   refinementCatalog: RefinementCatalog;
   refinementAssetBaseUrl: string;
   refinementAssetUrl: (key: string) => string;
+  featuredCatalog: FeaturedCatalog;
+  featuredAssetBaseUrl: string;
+  featuredAssetUrl: (key: string) => string;
   warnings: string[];
 }
 

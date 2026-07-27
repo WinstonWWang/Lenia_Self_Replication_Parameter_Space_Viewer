@@ -186,6 +186,7 @@ sub {
 .parameter-search {
   display: grid;
   min-width: 0;
+  position: relative;
 }
 
 .parameter-search__label {
@@ -244,6 +245,57 @@ sub {
 
 .parameter-search__message--success {
   color: #9eeab7;
+}
+
+.parameter-search__results {
+  position: absolute;
+  top: 3.7rem;
+  right: 0;
+  left: 0;
+  z-index: 40;
+  display: grid;
+  gap: 1px;
+  max-height: min(19rem, 55vh);
+  margin: 0;
+  padding: 4px;
+  overflow-y: auto;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  background: #1e1f22;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.38);
+  list-style: none;
+}
+
+.parameter-search__results button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 3px 10px;
+  width: 100%;
+  padding: 8px 9px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.parameter-search__results button:hover,
+.parameter-search__results button:focus-visible {
+  background: rgba(105, 173, 255, 0.14);
+}
+
+.parameter-search__results strong {
+  color: #9eeab7;
+  font-size: 0.62rem;
+}
+
+.parameter-search__results small {
+  grid-column: 1 / -1;
+  overflow-wrap: anywhere;
+  color: var(--text-muted);
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 0.6rem;
 }
 
 .viewer-layout {
@@ -726,6 +778,37 @@ sub {
   color: var(--text-muted);
   font-size: 0.62rem;
   line-height: 1.4;
+}
+
+.featured-detail-panel__coordinates {
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid var(--border);
+}
+
+.featured-detail-panel__coordinates dd,
+.featured-detail-panel__identity dd,
+.featured-detail-panel__identity code {
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.featured-detail-panel__world-sizes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin: 8px 0 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--border);
+}
+
+.featured-detail-panel__world-sizes > div {
+  min-width: 0;
+  padding: 7px 8px;
+  background: var(--panel-deep);
 }
 
 .detail-panel__evidence,

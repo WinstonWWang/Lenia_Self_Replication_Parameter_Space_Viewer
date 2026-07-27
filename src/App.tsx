@@ -4,17 +4,23 @@ import { AlphaSidebar } from "./components/AlphaSidebar";
 import { CubeViewer } from "./components/CubeViewer";
 import { DetailPanel } from "./components/DetailPanel";
 import { DynamicsDrawer } from "./components/DynamicsDrawer";
+import { FeaturedDetailPanel } from "./components/FeaturedDetailPanel";
 import { Legend } from "./components/Legend";
 import { SearchBar } from "./components/SearchBar";
 import {
   deriveDisplayStatus,
+  findFeaturedNeighborhood,
   findPointReview,
   findRefinementNeighborhood,
   loadSiteData,
+  readSelectionFromUrl,
+  visibleOffGridFeaturedPoints,
+  writeSelectionToUrl,
   type DisplayStatus,
+  type FeaturedSample,
   type LoadedSiteData,
   type RefinementSample,
-  type SitePoint,
+  type SelectedParameterPoint,
 } from "./data";
 
 const ALL_DISPLAY_STATUSES: readonly DisplayStatus[] = [
@@ -35,16 +41,14 @@ function describeError(error: unknown): string {
     : "The parameter-space data could not be loaded.";
 }
 
-function updatePointQuery(
-  pointId: string | null,
+function updateSelectionQuery(
+  selection: SelectedParameterPoint | null,
   mode: "push" | "replace" = "push",
 ) {
-  const url = new URL(window.location.href);
-  if (pointId) {
-    url.searchParams.set("point", pointId);
-  } else {
-    url.searchParams.delete("point");
-  }
+  const url = writeSelectionToUrl(
+    new URL(window.location.href),
+    selection,
+  );
   window.history[mode === "push" ? "pushState" : "replaceState"](
     null,
     "",
@@ -128,10 +132,13 @@ function ErrorView({ message }: { message: string }) {
 export default function App() {
   const runtime = useRuntimeData();
   const data = runtime.data;
-  const [selectedPointId, setSelectedPointId] = useState<string | null>(null);
-  const [selectedRefinementSample, setSelectedRefinementSample] =
-    useState<RefinementSample | null>(null);
-  const [hoveredPointId, setHoveredPointId] = useState<string | null>(null);
+  const [selectedPoint, setSelectedPoint] =
+    useState<SelectedParameterPoint | null>(null);
+  const [selectedLocalSample, setSelectedLocalSample] = useState<
+    RefinementSample | FeaturedSample | null
+  >(null);
+  const [hoveredPoint, setHoveredPoint] =
+    useState<SelectedParameterPoint | null>(null);
   const [pinnedAlphaIndex, setPinnedAlphaIndex] = useState<number | null>(null);
   const [previewAlphaIndex, setPreviewAlphaIndex] = useState<number | null>(
     null,
@@ -150,18 +157,54 @@ export default function App() {
       ),
     [data?.manifest.points],
   );
-  const selectedPoint = selectedPointId
-    ? pointById.get(selectedPointId) ?? null
-    : null;
+  const featuredPointById = useMemo(
+    () =>
+      new Map(
+        data?.featuredCatalog.featured_points
+          .filter((point) => point.coarse_point_id === undefined)
+          .map((point) => [point.id, point] as const) ?? [],
+      ),
+    [data?.featuredCatalog.featured_points],
+  );
+  const coarseIds = useMemo(
+    () => new Set(pointById.keys()),
+    [pointById],
+  );
+  const featuredIds = useMemo(
+    () => new Set(featuredPointById.keys()),
+    [featuredPointById],
+  );
+  const offGridFeaturedPoints = useMemo(
+    () =>
+      data
+        ? visibleOffGridFeaturedPoints(data.featuredCatalog)
+        : [],
+    [data],
+  );
+  const selectedCoarsePoint =
+    selectedPoint?.kind === "coarse"
+      ? pointById.get(selectedPoint.id) ?? null
+      : null;
+  const selectedFeaturedPoint =
+    selectedPoint?.kind === "featured"
+      ? featuredPointById.get(selectedPoint.id) ?? null
+      : null;
   const selectedReview =
-    selectedPoint && data
-      ? findPointReview(data.reviewOverlay, selectedPoint.id)
+    selectedCoarsePoint && data
+      ? findPointReview(data.reviewOverlay, selectedCoarsePoint.id)
       : undefined;
   const selectedNeighborhood =
-    selectedPoint && data
+    selectedCoarsePoint && data
       ? findRefinementNeighborhood(
           data.refinementCatalog,
-          selectedPoint.id,
+          selectedCoarsePoint.id,
+        )
+      : undefined;
+  const selectedFeaturedNeighborhood =
+    selectedFeaturedPoint && data
+      ? findFeaturedNeighborhood(
+          data.featuredCatalog,
+          selectedFeaturedPoint,
         )
       : undefined;
   const selectedReplayPoint = selectedNeighborhood?.replay_source_point_id
@@ -174,66 +217,123 @@ export default function App() {
 
   const selectPoint = useCallback(
     (
-      point: SitePoint,
+      selection: SelectedParameterPoint,
       options: { clearSlice?: boolean; history?: "push" | "replace" } = {},
     ) => {
-      setSelectedPointId(point.id);
-      setSelectedRefinementSample(null);
+      const coarsePoint =
+        selection.kind === "coarse"
+          ? pointById.get(selection.id)
+          : undefined;
+      const featuredPoint =
+        selection.kind === "featured"
+          ? featuredPointById.get(selection.id)
+          : undefined;
+      if (!coarsePoint && !featuredPoint) return;
+
+      setSelectedPoint(selection);
+      setSelectedLocalSample(null);
       setPreviewAlphaIndex(null);
       if (options.clearSlice) {
         setPinnedAlphaIndex(null);
       }
-      const review = data
-        ? findPointReview(data.reviewOverlay, point.id)
-        : undefined;
-      const displayStatus = deriveDisplayStatus(point, review);
+      const displayStatus: DisplayStatus = coarsePoint
+        ? deriveDisplayStatus(
+            coarsePoint,
+            data
+              ? findPointReview(data.reviewOverlay, coarsePoint.id)
+              : undefined,
+          )
+        : "self_replicator";
       setVisibleStatuses((current) => {
         if (current.has(displayStatus)) return current;
         const next = new Set(current);
         next.add(displayStatus);
         return next;
       });
-      const hasNeighborhood = Boolean(
-        data &&
-          findRefinementNeighborhood(data.refinementCatalog, point.id),
-      );
+      const hasNeighborhood =
+        selection.kind === "coarse"
+          ? Boolean(
+              data &&
+                findRefinementNeighborhood(
+                  data.refinementCatalog,
+                  selection.id,
+                ),
+            )
+          : Boolean(
+              data &&
+                findFeaturedNeighborhood(
+                  data.featuredCatalog,
+                  selection.id,
+                ),
+            );
       setLocalModeEnabled(
         displayStatus === "self_replicator" &&
           hasNeighborhood,
       );
-      updatePointQuery(point.id, options.history ?? "push");
+      updateSelectionQuery(selection, options.history ?? "push");
     },
-    [data],
+    [data, featuredPointById, pointById],
   );
 
   useEffect(() => {
     if (!data || initializedFromUrl.current) return;
     initializedFromUrl.current = true;
-    const pointId = new URL(window.location.href).searchParams.get("point");
-    const point = pointId ? pointById.get(pointId) : undefined;
-    if (point) {
-      selectPoint(point, { clearSlice: true, history: "replace" });
-    } else if (pointId) {
-      updatePointQuery(null, "replace");
+    const url = new URL(window.location.href);
+    const selection = readSelectionFromUrl(url, coarseIds, featuredIds);
+    if (selection) {
+      selectPoint(selection, { clearSlice: true, history: "replace" });
+    } else if (
+      url.searchParams.has("point") ||
+      url.searchParams.has("featured")
+    ) {
+      updateSelectionQuery(null, "replace");
     }
-  }, [data, pointById, selectPoint]);
+  }, [coarseIds, data, featuredIds, selectPoint]);
 
   useEffect(() => {
     if (!data) return;
     const handlePopState = () => {
-      const pointId = new URL(window.location.href).searchParams.get("point");
-      const point = pointId ? pointById.get(pointId) : undefined;
-      if (point) {
-        selectPoint(point, { clearSlice: true, history: "replace" });
+      const url = new URL(window.location.href);
+      const selection = readSelectionFromUrl(
+        url,
+        coarseIds,
+        featuredIds,
+      );
+      if (selection) {
+        selectPoint(selection, {
+          clearSlice: true,
+          history: "replace",
+        });
       } else {
-        setSelectedPointId(null);
-        setSelectedRefinementSample(null);
+        setSelectedPoint(null);
+        setSelectedLocalSample(null);
+        setHoveredPoint(null);
         setLocalModeEnabled(false);
+        if (
+          url.searchParams.has("point") ||
+          url.searchParams.has("featured")
+        ) {
+          updateSelectionQuery(null, "replace");
+        }
       }
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [data, pointById, selectPoint]);
+  }, [coarseIds, data, featuredIds, selectPoint]);
+
+  useEffect(() => {
+    if (!selectedPoint) return;
+    const stillAvailable =
+      selectedPoint.kind === "coarse"
+        ? pointById.has(selectedPoint.id)
+        : featuredPointById.has(selectedPoint.id);
+    if (stillAvailable) return;
+    setSelectedPoint(null);
+    setSelectedLocalSample(null);
+    setHoveredPoint(null);
+    setLocalModeEnabled(false);
+    updateSelectionQuery(null, "replace");
+  }, [featuredPointById, pointById, selectedPoint]);
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
@@ -241,9 +341,9 @@ export default function App() {
       if (previewAlphaIndex !== null || pinnedAlphaIndex !== null) {
         setPreviewAlphaIndex(null);
         setPinnedAlphaIndex(null);
-        setHoveredPointId(null);
-      } else if (selectedRefinementSample) {
-        setSelectedRefinementSample(null);
+        setHoveredPoint(null);
+      } else if (selectedLocalSample) {
+        setSelectedLocalSample(null);
       } else if (localModeEnabled) {
         setLocalModeEnabled(false);
       }
@@ -255,7 +355,7 @@ export default function App() {
     localModeEnabled,
     pinnedAlphaIndex,
     previewAlphaIndex,
-    selectedRefinementSample,
+    selectedLocalSample,
   ]);
 
   if (runtime.error) {
@@ -265,15 +365,14 @@ export default function App() {
     return <LoadingView />;
   }
 
-  const handleCubeSelect = (pointId: string) => {
-    const point = pointById.get(pointId);
-    if (point) selectPoint(point);
+  const handleCubeSelect = (selection: SelectedParameterPoint) => {
+    selectPoint(selection);
   };
   const handleAlphaSelect = (alphaIndex: number | null) => {
     setPinnedAlphaIndex(alphaIndex);
     setPreviewAlphaIndex(null);
-    setHoveredPointId(null);
-    setSelectedRefinementSample(null);
+    setHoveredPoint(null);
+    setSelectedLocalSample(null);
     setLocalModeEnabled(false);
   };
 
@@ -284,14 +383,25 @@ export default function App() {
           <p className="site-header__eyebrow">Cross-scale Lenia search</p>
           <h1>Lenia Self-Replication Parameter Space Viewer</h1>
           <p className="site-header__summary">
-            20 × 20 × 20 grid · {data.manifest.points.length.toLocaleString()}{" "}
-            parameter triples
+            {data.manifest.points.length.toLocaleString()} grid points +{" "}
+            {offGridFeaturedPoints.length.toLocaleString()} exact off-grid
+            replicators
           </p>
         </div>
         <SearchBar
           manifest={data.manifest}
+          featuredPoints={offGridFeaturedPoints}
           onSelect={(point) =>
-            selectPoint(point, { clearSlice: true })
+            selectPoint(
+              { kind: "coarse", id: point.id },
+              { clearSlice: true },
+            )
+          }
+          onSelectFeatured={(point) =>
+            selectPoint(
+              { kind: "featured", id: point.id },
+              { clearSlice: true },
+            )
           }
         />
         <div className="site-header__data-state">
@@ -316,12 +426,15 @@ export default function App() {
 
       <main
         className={`viewer-layout ${
-          selectedPoint ? "viewer-layout--selected" : ""
+          selectedCoarsePoint || selectedFeaturedPoint
+            ? "viewer-layout--selected"
+            : ""
         }`}
       >
         <AlphaSidebar
           manifest={data.manifest}
           reviewOverlay={data.reviewOverlay}
+          featuredCatalog={data.featuredCatalog}
           selectedAlphaIndex={pinnedAlphaIndex}
           isLocalMode={localModeEnabled}
           visibleStatuses={visibleStatuses}
@@ -334,22 +447,23 @@ export default function App() {
               manifest={data.manifest}
               reviewOverlay={data.reviewOverlay}
               refinementCatalog={data.refinementCatalog}
-              selectedPointId={selectedPointId}
-              selectedRefinementSample={selectedRefinementSample}
-              hoveredPointId={hoveredPointId}
+              featuredCatalog={data.featuredCatalog}
+              selectedPoint={selectedPoint}
+              selectedLocalSample={selectedLocalSample}
+              hoveredPoint={hoveredPoint}
               pinnedAlphaIndex={pinnedAlphaIndex}
               previewAlphaIndex={previewAlphaIndex}
               localModeEnabled={localModeEnabled}
               visibleStatuses={visibleStatuses}
               showLegend={false}
               onSelectPoint={handleCubeSelect}
-              onSelectRefinementSample={setSelectedRefinementSample}
-              onHoverPoint={setHoveredPointId}
+              onSelectLocalSample={setSelectedLocalSample}
+              onHoverPoint={setHoveredPoint}
               onPinnedAlphaChange={(alphaIndex) => {
                 setPinnedAlphaIndex(alphaIndex);
                 setPreviewAlphaIndex(null);
-                setHoveredPointId(null);
-                setSelectedRefinementSample(null);
+                setHoveredPoint(null);
+                setSelectedLocalSample(null);
                 setLocalModeEnabled(false);
               }}
               onPreviewAlphaChange={setPreviewAlphaIndex}
@@ -357,7 +471,7 @@ export default function App() {
             <Legend
               visibleStatuses={visibleStatuses}
               onToggle={(status) => {
-                setHoveredPointId(null);
+                setHoveredPoint(null);
                 setVisibleStatuses((current) => {
                   const next = new Set(current);
                   if (next.has(status)) next.delete(status);
@@ -374,18 +488,27 @@ export default function App() {
           </div>
         </section>
 
-        {selectedPoint ? (
+        {selectedCoarsePoint ? (
           <DetailPanel
-            point={selectedPoint}
+            point={selectedCoarsePoint}
             assetBaseUrl={data.assetBaseUrl}
             review={selectedReview}
             reviewAssetBaseUrl={data.reviewAssetBaseUrl}
-            refinementSample={selectedRefinementSample}
+            refinementSample={
+              selectedLocalSample as RefinementSample | null
+            }
             refinementSharedMedia={selectedNeighborhood?.shared_media}
             refinementReplayPoint={selectedReplayPoint}
             refinementReplayReview={selectedReplayReview}
             refinementAssetBaseUrl={data.refinementAssetBaseUrl}
             scoreSemantics={data.manifest.score_semantics}
+          />
+        ) : selectedFeaturedPoint ? (
+          <FeaturedDetailPanel
+            point={selectedFeaturedPoint}
+            assetBaseUrl={data.featuredAssetBaseUrl}
+            neighborhood={selectedFeaturedNeighborhood}
+            selectedSample={selectedLocalSample as FeaturedSample | null}
           />
         ) : null}
       </main>

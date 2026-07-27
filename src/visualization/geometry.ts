@@ -1,9 +1,14 @@
 import type {
+  FeaturedCatalog,
+  FeaturedPoint,
+  FeaturedSample,
   ParameterCoordinates,
   PointReview,
+  RefinementAxes,
   RefinementNeighborhood,
   RefinementSample,
   ReviewOverlay,
+  SelectedParameterPoint,
   SiteManifest,
   SitePoint,
 } from "../data";
@@ -26,12 +31,35 @@ export const STATUS_COLORS: Record<DisplayStatus, string> = {
 
 export const REFINEMENT_NEGATIVE_COLOR = "#9acfff";
 
-export interface PointRenderDatum {
+interface BasePointRenderDatum {
   id: string;
-  point: SitePoint;
+  coordinates: ParameterCoordinates;
   position: WorldPosition;
+  alphaIndex: number;
   status: DisplayStatus;
   color: string;
+}
+
+export interface CoarsePointRenderDatum extends BasePointRenderDatum {
+  kind: "coarse";
+  point: SitePoint;
+}
+
+export interface FeaturedPointRenderDatum extends BasePointRenderDatum {
+  kind: "featured";
+  point: FeaturedPoint;
+}
+
+export type PointRenderDatum =
+  | CoarsePointRenderDatum
+  | FeaturedPointRenderDatum;
+
+export type LocalSample = RefinementSample | FeaturedSample;
+
+export interface LocalNeighborhood {
+  id: string;
+  axes: RefinementAxes;
+  samples: LocalSample[];
 }
 
 export interface AxisCell {
@@ -42,7 +70,7 @@ export interface AxisCell {
 }
 
 export interface RefinementCell {
-  sample: RefinementSample;
+  sample: LocalSample;
   position: WorldPosition;
   scale: WorldPosition;
 }
@@ -93,13 +121,43 @@ export function makePointRenderData(
       reviews.get(point.id),
     ) as DisplayStatus;
     return {
+      kind: "coarse",
       id: point.id,
       point,
+      coordinates: point.coordinates,
       position: coordinatesToWorld(point.coordinates, manifest.axes),
+      alphaIndex: point.grid_index[2],
       status,
       color: STATUS_COLORS[status],
     };
   });
+}
+
+export function makeFeaturedPointRenderData(
+  manifest: SiteManifest,
+  featuredCatalog?: FeaturedCatalog | null,
+): FeaturedPointRenderDatum[] {
+  return (featuredCatalog?.featured_points ?? [])
+    .filter((point) => point.coarse_point_id === undefined)
+    .map((point) => ({
+      kind: "featured",
+      id: point.id,
+      point,
+      coordinates: point.coordinates,
+      position: coordinatesToWorld(point.coordinates, manifest.axes),
+      alphaIndex: nearestAxisIndex(
+        manifest.axes.alpha.values,
+        point.coordinates.alpha,
+      ),
+      status: "self_replicator",
+      color: STATUS_COLORS.self_replicator,
+    }));
+}
+
+export function renderDatumSelection(
+  datum: PointRenderDatum,
+): SelectedParameterPoint {
+  return { kind: datum.kind, id: datum.id };
 }
 
 export function splitPointDataByAlpha(
@@ -117,7 +175,7 @@ export function splitPointDataByAlpha(
   const active: PointRenderDatum[] = [];
   const faded: PointRenderDatum[] = [];
   for (const datum of data) {
-    if (datum.point.grid_index[2] === alphaIndex) active.push(datum);
+    if (datum.alphaIndex === alphaIndex) active.push(datum);
     else if (includeOffSliceContext) faded.push(datum);
   }
   return { active, faded };
@@ -168,7 +226,7 @@ function axisPhysicalExtent(
 }
 
 export function refinementContainsAlpha(
-  neighborhood: RefinementNeighborhood,
+  neighborhood: LocalNeighborhood,
   alpha: number,
   fallbackAlphaValues: readonly number[],
 ): boolean {
@@ -183,9 +241,46 @@ export function refinementContainsAlpha(
   return alpha >= minimum - epsilon && alpha <= maximum + epsilon;
 }
 
+export function refinementAlphaIndexForSlab(
+  neighborhood: LocalNeighborhood,
+  globalAlphaValues: readonly number[],
+  globalAlphaIndex: number,
+  preferredAlpha?: number,
+): number | null {
+  if (
+    globalAlphaIndex < 0 ||
+    globalAlphaIndex >= globalAlphaValues.length
+  ) {
+    return null;
+  }
+  const candidates = neighborhood.axes.alpha
+    .map((alpha, index) => ({ alpha, index }))
+    .filter(
+      ({ alpha }) =>
+        nearestAxisIndex(globalAlphaValues, alpha) === globalAlphaIndex,
+    );
+  if (candidates.length === 0) return null;
+
+  const target =
+    preferredAlpha ?? globalAlphaValues[globalAlphaIndex] ?? 0;
+  const first = candidates[0];
+  if (!first) return null;
+  let best = first;
+  for (const candidate of candidates.slice(1)) {
+    if (
+      Math.abs(candidate.alpha - target) <
+      Math.abs(best.alpha - target)
+    ) {
+      best = candidate;
+    }
+  }
+  return best.index;
+}
+
 export function refinementToGlobalTransform(
-  neighborhood: RefinementNeighborhood,
+  neighborhood: LocalNeighborhood,
   axes: SiteManifest["axes"],
+  centerCoordinates?: ParameterCoordinates,
 ): RefinementWorldTransform {
   const refinements = [
     neighborhood.axes.m_local,
@@ -205,8 +300,31 @@ export function refinementToGlobalTransform(
     if (!extent) continue;
     const start = normalizeAxisValue(extent[0], globals[axis]);
     const end = normalizeAxisValue(extent[1], globals[axis]);
-    position[axis] = (start + end) / 2;
+    const centerValue = centerCoordinates
+      ? [
+          centerCoordinates.m_local,
+          centerCoordinates.m_cross,
+          centerCoordinates.alpha,
+        ][axis]
+      : undefined;
     scale[axis] = Math.max(Math.abs(end - start) / 2, 0.0001);
+    if (centerValue === undefined) {
+      position[axis] = (start + end) / 2;
+    } else {
+      const extentSpan = extent[1] - extent[0];
+      const centerIndex = refinements[axis].findIndex(
+        (value) => value === centerValue,
+      );
+      const localCenter =
+        centerIndex >= 0
+          ? (buildAxisCells(refinements[axis])[centerIndex]?.center ?? 0)
+          : extentSpan === 0
+            ? 0
+            : -1 + (2 * (centerValue - extent[0])) / extentSpan;
+      position[axis] =
+        normalizeAxisValue(centerValue, globals[axis]) -
+        localCenter * scale[axis];
+    }
   }
 
   return { position, scale };
@@ -249,7 +367,7 @@ export function buildAxisCells(values: readonly number[]): AxisCell[] {
 }
 
 export function buildRefinementCells(
-  neighborhood: RefinementNeighborhood,
+  neighborhood: LocalNeighborhood,
   alphaIndex: number | null = null,
 ): {
   positive: RefinementCell[];
@@ -350,7 +468,7 @@ function appendFaceOutline(
 }
 
 export function buildRefinementBoundarySegments(
-  neighborhood: RefinementNeighborhood,
+  neighborhood: LocalNeighborhood,
   activeAlphaIndex: number | null = null,
 ): Float32Array {
   const cells = buildRefinementCells(neighborhood);

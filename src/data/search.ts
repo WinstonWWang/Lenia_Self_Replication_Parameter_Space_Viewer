@@ -1,4 +1,5 @@
 import type {
+  FeaturedPoint,
   ParameterTriple,
   SiteManifest,
   SnapResult,
@@ -32,6 +33,35 @@ export function parseParameterTriple(
   });
   if (!parsed.every(Number.isFinite)) return null;
   return [parsed[0], parsed[1], parsed[2]];
+}
+
+export function findFeaturedPointByName(
+  points: readonly FeaturedPoint[],
+  input: string,
+): FeaturedPoint | null {
+  const normalized = input.trim().toLocaleLowerCase();
+  if (!normalized) return null;
+  return (
+    points.find(
+      (point) =>
+        point.id.toLocaleLowerCase() === normalized ||
+        point.display_label.toLocaleLowerCase() === normalized,
+    ) ?? null
+  );
+}
+
+export function findExactFeaturedPoint(
+  points: readonly FeaturedPoint[],
+  input: ParameterTriple,
+): FeaturedPoint | null {
+  return (
+    points.find(
+      (point) =>
+        point.coordinates.m_local === input[0] &&
+        point.coordinates.m_cross === input[1] &&
+        point.coordinates.alpha === input[2],
+    ) ?? null
+  );
 }
 
 function nearestAxisIndex(values: number[], target: number): number {

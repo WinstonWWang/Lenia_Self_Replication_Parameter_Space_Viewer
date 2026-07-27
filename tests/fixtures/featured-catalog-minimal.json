@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "dataset_id": "product-lenia-mlocal-mcross-alpha-v1",
+  "asset_base_url": "https://winstonwwang.github.io/Lenia_Self_Replication_Parameter_Space_Viewer/",
+  "featured_points": [
+    {
+      "id": "reference_triple_original",
+      "display_label": "triple_original",
+      "namespace": "reference",
+      "coordinates": {
+        "m_local": 0.2196178287267685,
+        "m_cross": 0.06508693099021912,
+        "alpha": 0.4492952340663093
+      },
+      "source_reported_coordinates": {
+        "m_local": 0.2196178287267685,
+        "m_cross": 0.06508693099021912,
+        "alpha": 0.4492952340663093
+      },
+      "coordinate_semantics": "Exact simulator-applied coordinates.",
+      "status": "self_replicator",
+      "reviewed_at": "2026-07-27T00:00:00Z",
+      "refinement_neighborhood_id": "reference_triple_original_neighborhood",
+      "media": {
+        "poster": {
+          "key": "media/v1/triple_00503/top_1/7b8e9954dabfb82ba49542193abc70baaf050c95f0e1d54a32e8f934d439486d.png",
+          "sha256": "7b8e9954dabfb82ba49542193abc70baaf050c95f0e1d54a32e8f934d439486d",
+          "bytes": 1738629,
+          "width": 1128,
+          "height": 2240,
+          "source": "300-DPI top-rank report contact image"
+        }
+      },
+      "search_result": null,
+      "score_warning": null,
+      "center_video_world_pixels": null,
+      "refinement_simulation_world_pixels": null,
+      "world_size_comparison_note": null
+    }
+  ],
+  "neighborhoods": [
+    {
+      "id": "reference_triple_original_neighborhood",
+      "center_featured_id": "reference_triple_original",
+      "axes": {
+        "m_local": [
+          0.2196178287267685
+        ],
+        "m_cross": [
+          0.06508693099021912
+        ],
+        "alpha": [
+          0.4492952340663093
+        ]
+      },
+      "samples": [
+        {
+          "grid_index": [
+            0,
+            0,
+            0
+          ],
+          "coordinates": {
+            "m_local": 0.2196178287267685,
+            "m_cross": 0.06508693099021912,
+            "alpha": 0.4492952340663093
+          },
+          "status": "self_replicator"
+        }
+      ]
+    }
+  ]
+}

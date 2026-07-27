@@ -3,16 +3,19 @@ import { useEffect, useMemo, useRef } from "react";
 import {
   deriveDisplayStatus,
   type DisplayStatus,
+  type FeaturedCatalog,
   type PointReview,
   type ReviewOverlay,
   type SiteManifest,
 } from "../data";
+import { makeFeaturedPointRenderData } from "../visualization/geometry";
 
 export interface SliceThumbnailProps {
   manifest: SiteManifest;
   reviewOverlay: ReviewOverlay;
   alphaIndex: number;
   visibleStatuses?: ReadonlySet<DisplayStatus>;
+  featuredCatalog?: FeaturedCatalog | null;
 }
 
 export const THUMBNAIL_STATUS_COLORS: Readonly<Record<DisplayStatus, string>> = {
@@ -23,12 +26,41 @@ export const THUMBNAIL_STATUS_COLORS: Readonly<Record<DisplayStatus, string>> = 
 };
 
 const CANVAS_SIZE = 80;
+const POINT_RADIUS_RATIO = 0.32;
+
+function drawPoint(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  radius: number,
+  color: string,
+): void {
+  context.beginPath();
+  context.arc(x, y, radius, 0, Math.PI * 2);
+  context.fillStyle = color;
+  context.fill();
+}
+
+function exactAxisPosition(
+  value: number,
+  values: readonly number[],
+  canvasLength: number,
+): number {
+  if (values.length < 2) return canvasLength / 2;
+  const first = values[0] ?? 0;
+  const last = values[values.length - 1] ?? first;
+  const cellSize = canvasLength / values.length;
+  if (first === last) return canvasLength / 2;
+  const normalized = Math.max(0, Math.min(1, (value - first) / (last - first)));
+  return cellSize / 2 + normalized * (canvasLength - cellSize);
+}
 
 export function SliceThumbnail({
   manifest,
   reviewOverlay,
   alphaIndex,
   visibleStatuses,
+  featuredCatalog,
 }: SliceThumbnailProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const alpha = manifest.axes.alpha.values[alphaIndex];
@@ -46,6 +78,13 @@ export function SliceThumbnail({
       ),
     [reviewOverlay.reviews],
   );
+  const featuredSlicePoints = useMemo(
+    () =>
+      makeFeaturedPointRenderData(manifest, featuredCatalog).filter(
+        (datum) => datum.alphaIndex === alphaIndex,
+      ),
+    [alphaIndex, featuredCatalog, manifest],
+  );
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -58,27 +97,51 @@ export function SliceThumbnail({
     const mCrossCount = manifest.axes.m_cross.count;
     const cellWidth = canvas.width / mLocalCount;
     const cellHeight = canvas.height / mCrossCount;
+    const pointRadius =
+      Math.min(cellWidth, cellHeight) * POINT_RADIUS_RATIO;
 
     context.clearRect(0, 0, canvas.width, canvas.height);
-    context.fillStyle = "#25272a";
-    context.fillRect(0, 0, canvas.width, canvas.height);
 
     for (const point of slicePoints) {
       const review = reviewsByPointId.get(point.id);
       const status = deriveDisplayStatus(point, review);
       if (visibleStatuses && !visibleStatuses.has(status)) continue;
 
-      context.fillStyle = THUMBNAIL_STATUS_COLORS[status];
-      context.fillRect(
-        point.grid_index[0] * cellWidth,
-        (mCrossCount - 1 - point.grid_index[1]) * cellHeight,
-        Math.ceil(cellWidth),
-        Math.ceil(cellHeight),
+      drawPoint(
+        context,
+        (point.grid_index[0] + 0.5) * cellWidth,
+        (mCrossCount - point.grid_index[1] - 0.5) * cellHeight,
+        pointRadius,
+        THUMBNAIL_STATUS_COLORS[status],
       );
     }
+
+    if (!visibleStatuses || visibleStatuses.has("self_replicator")) {
+      for (const datum of featuredSlicePoints) {
+        drawPoint(
+          context,
+          exactAxisPosition(
+            datum.coordinates.m_local,
+            manifest.axes.m_local.values,
+            canvas.width,
+          ),
+          canvas.height -
+            exactAxisPosition(
+              datum.coordinates.m_cross,
+              manifest.axes.m_cross.values,
+              canvas.height,
+            ),
+          pointRadius * 1.25,
+          THUMBNAIL_STATUS_COLORS.self_replicator,
+        );
+      }
+    }
   }, [
+    featuredSlicePoints,
     manifest.axes.m_cross.count,
+    manifest.axes.m_cross.values,
     manifest.axes.m_local.count,
+    manifest.axes.m_local.values,
     reviewsByPointId,
     slicePoints,
     visibleStatuses,

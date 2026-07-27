@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  findExactFeaturedPoint,
+  findFeaturedPointByName,
   parseParameterTriple,
   snapToNearestTestedPoint,
 } from "./search";
-import type { SiteManifest, SitePoint } from "./types";
+import type {
+  FeaturedPoint,
+  SiteManifest,
+  SitePoint,
+} from "./types";
 
 function searchFixture(): SiteManifest {
   const unitValues = Array.from({ length: 20 }, (_, index) => index / 19);
@@ -87,5 +93,50 @@ describe("snapToNearestTestedPoint", () => {
       point.coordinates.alpha,
     ]);
     expect(result.wasSnapped).toBe(false);
+  });
+});
+
+describe("featured point search", () => {
+  const featured = [
+    {
+      id: "preclassification_sobol_triple_00075",
+      display_label: "triple_00075",
+      coordinates: {
+        m_local: 0.3152100145816803,
+        m_cross: 0.17585211992263794,
+        alpha: 0.7561357617378235,
+      },
+    },
+  ] as FeaturedPoint[];
+
+  it("finds the namespaced point by its colliding historical label", () => {
+    expect(
+      findFeaturedPointByName(featured, "triple_00075")?.id,
+    ).toBe("preclassification_sobol_triple_00075");
+    expect(
+      findFeaturedPointByName(
+        featured,
+        "preclassification_sobol_triple_00075",
+      )?.display_label,
+    ).toBe("triple_00075");
+  });
+
+  it("returns the featured point only for exact applied coordinates", () => {
+    const coordinates = featured[0]?.coordinates;
+    if (!coordinates) throw new Error("Missing featured fixture");
+    expect(
+      findExactFeaturedPoint(featured, [
+        coordinates.m_local,
+        coordinates.m_cross,
+        coordinates.alpha,
+      ]),
+    ).toBe(featured[0]);
+    expect(
+      findExactFeaturedPoint(featured, [
+        coordinates.m_local + 1e-8,
+        coordinates.m_cross,
+        coordinates.alpha,
+      ]),
+    ).toBeNull();
   });
 });
