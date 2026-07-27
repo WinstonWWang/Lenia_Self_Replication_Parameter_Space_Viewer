@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/lenia/latest-pointer.schema.json",
+  "title": "Lenia public manifest pointer",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "published_at",
+    "manifest_key",
+    "manifest_sha256",
+    "manifest_bytes",
+    "manifest_content_encoding",
+    "manifest_object_sha256",
+    "manifest_object_bytes"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "published_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "manifest_key": {
+      "type": "string",
+      "pattern": "^manifests/snapshots/[a-f0-9]{64}\\.json$"
+    },
+    "manifest_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "manifest_bytes": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "manifest_content_encoding": {
+      "enum": [
+        "gzip",
+        "identity"
+      ]
+    },
+    "manifest_object_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "manifest_object_bytes": {
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "additionalProperties": false
+}

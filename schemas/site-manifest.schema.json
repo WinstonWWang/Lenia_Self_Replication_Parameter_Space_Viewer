@@ -1,0 +1,1048 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/lenia/site-manifest.schema.json",
+  "title": "Lenia parameter-space site manifest",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "dataset_id",
+    "generated_at",
+    "manifest_sha256",
+    "asset_base_url",
+    "axes",
+    "fixed_law",
+    "search_configuration",
+    "score_semantics",
+    "classification_definitions",
+    "summary",
+    "provenance",
+    "points"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "dataset_id": {
+      "const": "product-lenia-mlocal-mcross-alpha-v1"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "manifest_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "asset_base_url": {
+      "oneOf": [
+        {
+          "const": ""
+        },
+        {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://"
+        }
+      ]
+    },
+    "axes": {
+      "type": "object",
+      "required": [
+        "m_local",
+        "m_cross",
+        "alpha"
+      ],
+      "properties": {
+        "m_local": {
+          "$ref": "#/$defs/axis"
+        },
+        "m_cross": {
+          "$ref": "#/$defs/axis"
+        },
+        "alpha": {
+          "$ref": "#/$defs/axis"
+        }
+      },
+      "additionalProperties": false
+    },
+    "fixed_law": {
+      "type": "object",
+      "required": [
+        "R1",
+        "T",
+        "r2",
+        "sigma2",
+        "sigma_local",
+        "sigma_cross",
+        "lambda_strength",
+        "phi",
+        "cross_potential_scale",
+        "vacuum_gate_a0",
+        "local_profile",
+        "h_local",
+        "h_cross"
+      ],
+      "properties": {
+        "R1": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "T": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "r2": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "sigma2": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "sigma_local": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "sigma_cross": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "lambda_strength": {
+          "type": "number"
+        },
+        "phi": {
+          "type": "number"
+        },
+        "cross_potential_scale": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "vacuum_gate_a0": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "local_profile": {
+          "const": "gaussian_mid"
+        },
+        "h_local": {
+          "const": "1 - alpha"
+        },
+        "h_cross": {
+          "const": "alpha"
+        }
+      },
+      "additionalProperties": false
+    },
+    "search_configuration": {
+      "type": "object",
+      "required": [
+        "grid_size",
+        "field_size",
+        "patch_grid",
+        "population_size",
+        "scored_rollout_updates",
+        "time_samples",
+        "prompt_schedule",
+        "foundation_model",
+        "video_replay_updates"
+      ],
+      "properties": {
+        "grid_size": {
+          "const": 800
+        },
+        "field_size": {
+          "const": 256
+        },
+        "patch_grid": {
+          "const": 32
+        },
+        "population_size": {
+          "const": 20
+        },
+        "scored_rollout_updates": {
+          "const": 800
+        },
+        "time_samples": {
+          "const": 8
+        },
+        "prompt_schedule": {
+          "type": "array",
+          "minItems": 8,
+          "maxItems": 8,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "foundation_model": {
+          "const": "clip"
+        },
+        "video_replay_updates": {
+          "const": 1000
+        }
+      },
+      "additionalProperties": false
+    },
+    "score_semantics": {
+      "type": "object",
+      "required": [
+        "combined_loss",
+        "clip_score_prompt",
+        "warning",
+        "mixed_budget_warning"
+      ],
+      "properties": {
+        "combined_loss": {
+          "const": "lower is better"
+        },
+        "clip_score_prompt": {
+          "const": "-loss_prompt; higher is better"
+        },
+        "warning": {
+          "const": "Search score, not replication verification"
+        },
+        "mixed_budget_warning": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "classification_definitions": {
+      "type": "object",
+      "required": [
+        "excluded_by_m_local_cutoff",
+        "experimentally_dead",
+        "dynamics_unresolved"
+      ],
+      "properties": {
+        "excluded_by_m_local_cutoff": {
+          "type": "string",
+          "minLength": 1
+        },
+        "experimentally_dead": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dynamics_unresolved": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "total_grid_points",
+        "excluded_by_m_local_cutoff",
+        "experimentally_dead",
+        "dynamics_unresolved",
+        "asal_completed",
+        "asal_reports_available",
+        "asal_not_started",
+        "asal_budget_seconds_histogram",
+        "media",
+        "source_progress_status"
+      ],
+      "properties": {
+        "total_grid_points": {
+          "const": 8000
+        },
+        "excluded_by_m_local_cutoff": {
+          "const": 400
+        },
+        "experimentally_dead": {
+          "const": 6412
+        },
+        "dynamics_unresolved": {
+          "const": 1188
+        },
+        "asal_completed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1188
+        },
+        "asal_reports_available": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1188
+        },
+        "asal_not_started": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1188
+        },
+        "asal_budget_seconds_histogram": {
+          "type": "object",
+          "properties": {
+            "300": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "900": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false
+        },
+        "media": {
+          "type": "object",
+          "required": [
+            "poster",
+            "video",
+            "parameters"
+          ],
+          "properties": {
+            "poster": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "video": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "parameters": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false
+        },
+        "source_progress_status": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "combined_config_digest",
+        "sobol_plan_digest",
+        "source_sha256"
+      ],
+      "properties": {
+        "combined_config_digest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sobol_plan_digest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "source_sha256": {
+          "type": "object",
+          "required": [
+            "grid_plan",
+            "combined_results",
+            "combined_progress",
+            "combined_config",
+            "sobol_plan",
+            "experiment_config",
+            "actual_parameters"
+          ],
+          "properties": {
+            "grid_plan": {
+              "$ref": "#/$defs/sha256"
+            },
+            "combined_results": {
+              "$ref": "#/$defs/sha256"
+            },
+            "combined_progress": {
+              "$ref": "#/$defs/sha256"
+            },
+            "combined_config": {
+              "$ref": "#/$defs/sha256"
+            },
+            "sobol_plan": {
+              "$ref": "#/$defs/sha256"
+            },
+            "experiment_config": {
+              "$ref": "#/$defs/sha256"
+            },
+            "actual_parameters": {
+              "$ref": "#/$defs/sha256"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "points": {
+      "type": "array",
+      "minItems": 8000,
+      "maxItems": 8000,
+      "items": {
+        "$ref": "#/$defs/point"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "axis": {
+      "type": "object",
+      "required": [
+        "values",
+        "count"
+      ],
+      "properties": {
+        "values": {
+          "type": "array",
+          "minItems": 20,
+          "maxItems": 20,
+          "items": {
+            "type": "number"
+          }
+        },
+        "count": {
+          "const": 20
+        }
+      },
+      "additionalProperties": false
+    },
+    "ensembleEvidence": {
+      "type": "object",
+      "required": [
+        "classification",
+        "confirmed_vacuum_count"
+      ],
+      "properties": {
+        "classification": {
+          "enum": [
+            "experimentally_dead",
+            "dynamics_unresolved"
+          ]
+        },
+        "confirmed_vacuum_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 20
+        }
+      },
+      "additionalProperties": false
+    },
+    "excludedEvidence": {
+      "type": "object",
+      "required": [
+        "exclusion_reason",
+        "vacuum_behavior_note",
+        "sampled_initial_fields"
+      ],
+      "properties": {
+        "exclusion_reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "vacuum_behavior_note": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sampled_initial_fields": {
+          "const": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "sampledEvidence": {
+      "type": "object",
+      "required": [
+        "confirmed_vacuum_count",
+        "sampled_initial_fields",
+        "voronoi",
+        "fourier_curve",
+        "gaussian_mixture"
+      ],
+      "properties": {
+        "confirmed_vacuum_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 60
+        },
+        "sampled_initial_fields": {
+          "const": 60
+        },
+        "voronoi": {
+          "$ref": "#/$defs/ensembleEvidence"
+        },
+        "fourier_curve": {
+          "$ref": "#/$defs/ensembleEvidence"
+        },
+        "gaussian_mixture": {
+          "$ref": "#/$defs/ensembleEvidence"
+        }
+      },
+      "additionalProperties": false
+    },
+    "deadEvidence": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/sampledEvidence"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "confirmed_vacuum_count": {
+              "const": 60
+            }
+          }
+        }
+      ]
+    },
+    "unresolvedEvidence": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/sampledEvidence"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "confirmed_vacuum_count": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 59
+            }
+          }
+        }
+      ]
+    },
+    "sobolFields": {
+      "type": "object",
+      "required": [
+        "sequence_index",
+        "sobol_draw_index",
+        "sobol_unit_point"
+      ],
+      "properties": {
+        "sequence_index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1187
+        },
+        "sobol_draw_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sobol_unit_point": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "exclusiveMaximum": 1
+          }
+        }
+      }
+    },
+    "notApplicableAsal": {
+      "type": "object",
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "const": "not_applicable"
+        }
+      },
+      "additionalProperties": false
+    },
+    "notStartedAsal": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/sobolFields"
+        },
+        {
+          "type": "object",
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "const": "not_started"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "completedAsal": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/sobolFields"
+        },
+        {
+          "type": "object",
+          "required": [
+            "status",
+            "completed_at",
+            "budget_seconds",
+            "elapsed_seconds",
+            "iterations",
+            "simulations",
+            "best_loss",
+            "best_loss_prompt",
+            "best_clip_score_prompt",
+            "best_loss_softmax",
+            "report_available",
+            "top"
+          ],
+          "properties": {
+            "status": {
+              "const": "completed"
+            },
+            "completed_at": {
+              "type": "string",
+              "minLength": 1
+            },
+            "budget_seconds": {
+              "enum": [
+                300.0,
+                900.0
+              ]
+            },
+            "elapsed_seconds": {
+              "type": "number",
+              "minimum": 0
+            },
+            "iterations": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "simulations": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "best_loss": {
+              "type": "number"
+            },
+            "best_loss_prompt": {
+              "type": "number"
+            },
+            "best_clip_score_prompt": {
+              "type": "number"
+            },
+            "best_loss_softmax": {
+              "type": "number"
+            },
+            "report_available": {
+              "type": "boolean"
+            },
+            "top": {
+              "type": "array",
+              "maxItems": 3,
+              "items": {
+                "$ref": "#/$defs/topCandidate"
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "topCandidate": {
+      "type": "object",
+      "required": [
+        "rank",
+        "loss",
+        "loss_prompt",
+        "clip_score_prompt",
+        "loss_softmax",
+        "iteration",
+        "candidate_index",
+        "segmentation"
+      ],
+      "properties": {
+        "rank": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3
+        },
+        "loss": {
+          "type": "number"
+        },
+        "loss_prompt": {
+          "type": "number"
+        },
+        "clip_score_prompt": {
+          "type": "number"
+        },
+        "loss_softmax": {
+          "type": "number"
+        },
+        "iteration": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "candidate_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "segmentation": {
+          "type": "object",
+          "required": [
+            "split_events",
+            "components_start",
+            "components_end"
+          ],
+          "properties": {
+            "split_events": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "components_start": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "components_end": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "baseAsset": {
+      "type": "object",
+      "required": [
+        "key",
+        "sha256",
+        "bytes"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^(media|repro)/v1/"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "source": {
+          "type": "string"
+        }
+      }
+    },
+    "posterAsset": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseAsset"
+        },
+        {
+          "type": "object",
+          "required": [
+            "width",
+            "height"
+          ],
+          "properties": {
+            "width": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "height": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "videoAsset": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseAsset"
+        },
+        {
+          "type": "object",
+          "required": [
+            "width",
+            "height",
+            "frames",
+            "fps",
+            "scored_updates",
+            "replay_updates"
+          ],
+          "properties": {
+            "width": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "height": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "frames": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "fps": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "scored_updates": {
+              "const": 800
+            },
+            "replay_updates": {
+              "const": 1000
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "parameterAsset": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseAsset"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "format": {
+              "type": "string"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "media": {
+      "type": "object",
+      "required": [
+        "poster",
+        "video",
+        "parameters"
+      ],
+      "properties": {
+        "poster": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/posterAsset"
+            }
+          ]
+        },
+        "video": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/videoAsset"
+            }
+          ]
+        },
+        "parameters": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/parameterAsset"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "point": {
+      "type": "object",
+      "required": [
+        "id",
+        "global_index",
+        "grid_index",
+        "coordinates",
+        "classification",
+        "evidence",
+        "asal",
+        "media"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^triple_[0-9]{5}$"
+        },
+        "global_index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 7999
+        },
+        "grid_index": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 19
+            },
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 19
+            },
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 19
+            }
+          ],
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "coordinates": {
+          "type": "object",
+          "required": [
+            "m_local",
+            "m_cross",
+            "alpha"
+          ],
+          "properties": {
+            "m_local": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "m_cross": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 7.31914
+            },
+            "alpha": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "classification": {
+          "enum": [
+            "excluded_by_m_local_cutoff",
+            "experimentally_dead",
+            "dynamics_unresolved"
+          ]
+        },
+        "evidence": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/excludedEvidence"
+            },
+            {
+              "$ref": "#/$defs/sampledEvidence"
+            }
+          ]
+        },
+        "asal": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/notApplicableAsal"
+            },
+            {
+              "$ref": "#/$defs/notStartedAsal"
+            },
+            {
+              "$ref": "#/$defs/completedAsal"
+            }
+          ]
+        },
+        "media": {
+          "$ref": "#/$defs/media"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "const": "excluded_by_m_local_cutoff"
+              }
+            },
+            "required": [
+              "classification"
+            ]
+          },
+          "then": {
+            "properties": {
+              "evidence": {
+                "$ref": "#/$defs/excludedEvidence"
+              },
+              "asal": {
+                "$ref": "#/$defs/notApplicableAsal"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "const": "experimentally_dead"
+              }
+            },
+            "required": [
+              "classification"
+            ]
+          },
+          "then": {
+            "properties": {
+              "evidence": {
+                "$ref": "#/$defs/deadEvidence"
+              },
+              "asal": {
+                "$ref": "#/$defs/notApplicableAsal"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "const": "dynamics_unresolved"
+              }
+            },
+            "required": [
+              "classification"
+            ]
+          },
+          "then": {
+            "properties": {
+              "evidence": {
+                "$ref": "#/$defs/unresolvedEvidence"
+              },
+              "asal": {
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/notStartedAsal"
+                  },
+                  {
+                    "$ref": "#/$defs/completedAsal"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    }
+  }
+}
