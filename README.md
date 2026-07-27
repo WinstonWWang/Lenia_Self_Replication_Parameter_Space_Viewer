@@ -83,7 +83,7 @@ Three.js code does not change.
 
 The cluster-facing packaging, media, manual-review, refinement, R2
 transaction, and verification contract is in
-[`CLUSTER_DATA_HANDOFF.md`](./CLUSTER_DATA_HANDOFF.md).
+[`072726_CLUSTER_DATA_HANDOFF_FOR_WEBSITE.md`](./072726_CLUSTER_DATA_HANDOFF_FOR_WEBSITE.md).
 
 ## Manual review overlay
 

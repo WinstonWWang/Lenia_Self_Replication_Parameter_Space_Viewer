@@ -1,4 +1,4 @@
-# Cluster-to-Website Data Publication Handoff
+# Cluster-to-Website Data Publication Handoff (2026-07-27)
 
 Updated: 2026-07-27
 
