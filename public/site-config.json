@@ -5,5 +5,6 @@
   "fallback_asset_base_url": "./",
   "review_overlay_url": "./data/review-overlay.json",
   "refinement_catalog_url": "./data/refinement-catalog.json",
+  "featured_catalog_url": "https://pub-f0e4d19efe3248388e36842e1c75963a.r2.dev/featured/featured-replicators.json",
   "refresh_interval_seconds": 300
 }
