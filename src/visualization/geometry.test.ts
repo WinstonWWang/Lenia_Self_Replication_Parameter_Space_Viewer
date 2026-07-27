@@ -91,6 +91,13 @@ describe("visualization coordinates", () => {
     expect(split.active.map((item) => item.id)).toEqual(["triple_00001"]);
     expect(split.faded.map((item) => item.id)).toEqual(["triple_00000"]);
   });
+
+  it("omits off-slice points for a clean pinned 2D view", () => {
+    const data = [datum("triple_00000", 0), datum("triple_00001", 1)];
+    const split = splitPointDataByAlpha(data, 1, false);
+    expect(split.active.map((item) => item.id)).toEqual(["triple_00001"]);
+    expect(split.faded).toEqual([]);
+  });
 });
 
 describe("refinement geometry", () => {

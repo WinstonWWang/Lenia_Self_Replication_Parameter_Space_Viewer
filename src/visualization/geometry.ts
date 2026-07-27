@@ -105,6 +105,7 @@ export function makePointRenderData(
 export function splitPointDataByAlpha(
   data: readonly PointRenderDatum[],
   alphaIndex: number | null,
+  includeOffSliceContext = true,
 ): {
   active: PointRenderDatum[];
   faded: PointRenderDatum[];
@@ -117,7 +118,7 @@ export function splitPointDataByAlpha(
   const faded: PointRenderDatum[] = [];
   for (const datum of data) {
     if (datum.point.grid_index[2] === alphaIndex) active.push(datum);
-    else faded.push(datum);
+    else if (includeOffSliceContext) faded.push(datum);
   }
   return { active, faded };
 }

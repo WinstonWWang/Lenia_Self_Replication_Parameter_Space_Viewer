@@ -472,6 +472,86 @@ function SlicePlane({ z }: { z: number }): React.JSX.Element {
   );
 }
 
+function FlatSliceFrame({
+  alpha,
+  z,
+}: {
+  alpha: number;
+  z: number;
+}): React.JSX.Element {
+  const outlinePositions = useMemo(
+    () =>
+      new Float32Array([
+        -1,
+        -1,
+        z,
+        1,
+        -1,
+        z,
+        1,
+        -1,
+        z,
+        1,
+        1,
+        z,
+        1,
+        1,
+        z,
+        -1,
+        1,
+        z,
+        -1,
+        1,
+        z,
+        -1,
+        -1,
+        z,
+      ]),
+    [z],
+  );
+
+  return (
+    <group>
+      <LineGeometry
+        color="#ffffff"
+        opacity={0.36}
+        positions={outlinePositions}
+        renderOrder={2}
+      />
+      <Html
+        center
+        position={[0, -1.14, z]}
+        style={labelStyle}
+        zIndexRange={[4, 0]}
+      >
+        <span aria-label="m local">
+          m<sub>{"\u2113"}</sub>
+        </span>
+      </Html>
+      <Html
+        center
+        position={[-1.14, 0, z]}
+        style={labelStyle}
+        zIndexRange={[4, 0]}
+      >
+        <span>
+          m<sub>c</sub>
+        </span>
+      </Html>
+      <Html
+        center
+        position={[0, 1.14, z]}
+        style={labelStyle}
+        zIndexRange={[4, 0]}
+      >
+        <span>
+          {"\u03b1"} = {alpha.toFixed(3)}
+        </span>
+      </Html>
+    </group>
+  );
+}
+
 function makeRailTickPositions(alphaValues: readonly number[]): Float32Array {
   const positions: number[] = [];
   const corners: ReadonlyArray<readonly [number, number]> = [
@@ -623,6 +703,7 @@ function CameraRig({
     useRef<ComponentRef<typeof OrbitControls>>(null);
   const camera = useThree((state) => state.camera);
   const invalidate = useThree((state) => state.invalidate);
+  const viewportSize = useThree((state) => state.size);
   const desiredPosition = useRef(new THREE.Vector3(3.4, 3, 3.4));
   const desiredTarget = useRef(new THREE.Vector3());
   const savedPosition = useRef(new THREE.Vector3(3.4, 3, 3.4));
@@ -632,6 +713,18 @@ function CameraRig({
   const initialized = useRef(false);
   const cameraSliceZ =
     mode === "slice" || mode === "local-slice" ? sliceZ : 0;
+  const sliceCameraDistance =
+    camera instanceof THREE.PerspectiveCamera
+      ? Math.max(
+          3.25,
+          1.24 /
+            Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)),
+          1.24 /
+            (Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) *
+              (Math.max(viewportSize.width, 1) /
+                Math.max(viewportSize.height, 1))),
+        )
+      : 3.25;
   const focusKey =
     mode === "focus" && focusPosition
       ? focusPosition.join(",")
@@ -667,11 +760,10 @@ function CameraRig({
       desiredPosition.current.copy(savedPosition.current);
       desiredTarget.current.copy(savedTarget.current);
     } else if (mode === "slice" || mode === "local-slice") {
-      const direction = cameraSliceZ >= 0 ? 1 : -1;
       desiredPosition.current.set(
         0,
         0,
-        cameraSliceZ + direction * 3.25,
+        cameraSliceZ + sliceCameraDistance,
       );
       desiredTarget.current.set(0, 0, cameraSliceZ);
     } else if (mode === "local") {
@@ -692,7 +784,14 @@ function CameraRig({
     animating.current = true;
     controls.enabled = false;
     invalidate();
-  }, [camera, cameraSliceZ, focusKey, invalidate, mode]);
+  }, [
+    camera,
+    cameraSliceZ,
+    focusKey,
+    invalidate,
+    mode,
+    sliceCameraDistance,
+  ]);
 
   useFrame((_, delta) => {
     if (!controlsRef.current) return;
@@ -896,17 +995,28 @@ function RefinementView({
     setHoveredCell(cell);
     onHoverSample(cell?.sample ?? null);
   };
-  const selectedCell = selectedSample
+  const visibleCells = showFaded
     ? [
         ...cells.positive,
         ...cells.negative,
         ...cells.fadedPositive,
         ...cells.fadedNegative,
-      ].find(
+      ]
+    : [...cells.positive, ...cells.negative];
+  const selectedCell = selectedSample
+    ? visibleCells.find(
         (cell) =>
           cell.sample.grid_index[0] === selectedSample.grid_index[0] &&
           cell.sample.grid_index[1] === selectedSample.grid_index[1] &&
           cell.sample.grid_index[2] === selectedSample.grid_index[2],
+      )
+    : null;
+  const visibleHoveredCell = hoveredCell
+    ? visibleCells.find(
+        (cell) =>
+          cell.sample.grid_index[0] === hoveredCell.sample.grid_index[0] &&
+          cell.sample.grid_index[1] === hoveredCell.sample.grid_index[1] &&
+          cell.sample.grid_index[2] === hoveredCell.sample.grid_index[2],
       )
     : null;
 
@@ -959,19 +1069,19 @@ function RefinementView({
         renderOrder={4}
       />
       {selectedCell && <SelectionMarker position={selectedCell.position} />}
-      {hoveredCell && (
+      {visibleHoveredCell && (
         <Html
           center
-          position={hoveredCell.position}
+          position={visibleHoveredCell.position}
           style={{ pointerEvents: "none" }}
           zIndexRange={[4, 0]}
         >
           <div className="cube-viewer__tooltip" style={tooltipStyle}>
             (m<sub>ℓ</sub> ={" "}
-            {hoveredCell.sample.coordinates.m_local.toFixed(5)}, m
+            {visibleHoveredCell.sample.coordinates.m_local.toFixed(5)}, m
             <sub>c</sub> ={" "}
-            {hoveredCell.sample.coordinates.m_cross.toFixed(5)}, α ={" "}
-            {hoveredCell.sample.coordinates.alpha.toFixed(5)})
+            {visibleHoveredCell.sample.coordinates.m_cross.toFixed(5)}, α ={" "}
+            {visibleHoveredCell.sample.coordinates.alpha.toFixed(5)})
           </div>
         </Html>
       )}
@@ -1027,9 +1137,16 @@ function ParameterScene({
     effectiveAlphaIndex < manifest.axes.alpha.values.length
       ? effectiveAlphaIndex
       : null;
+  const isPinnedAlphaSlice =
+    pinnedAlphaIndex !== null && validAlphaIndex !== null;
   const splitData = useMemo(
-    () => splitPointDataByAlpha(visiblePointData, validAlphaIndex),
-    [validAlphaIndex, visiblePointData],
+    () =>
+      splitPointDataByAlpha(
+        visiblePointData,
+        validAlphaIndex,
+        !isPinnedAlphaSlice,
+      ),
+    [isPinnedAlphaSlice, validAlphaIndex, visiblePointData],
   );
   const neighborhood =
     selectedStatusVisible && selectedDatum?.status === "self_replicator"
@@ -1066,15 +1183,23 @@ function ParameterScene({
       ? 0
       : (localZCells[localAlphaIndex]?.center ?? 0);
   const localMode = localModeEnabled && neighborhood !== null;
+  const isPinnedLocalSlice =
+    localMode && isPinnedAlphaSlice && localAlphaIndex !== null;
   const globalRefinementTransform =
     neighborhood && !localMode && localAlphaIndex !== null
       ? refinementToGlobalTransform(neighborhood, manifest.axes)
       : null;
+  const visibleHoveredDatum =
+    hoveredDatum &&
+    (!isPinnedAlphaSlice ||
+      hoveredDatum.point.grid_index[2] === validAlphaIndex)
+      ? hoveredDatum
+      : null;
   const cameraMode: CameraRigProps["mode"] = localMode
-    ? pinnedAlphaIndex !== null
+    ? isPinnedLocalSlice
       ? "local-slice"
       : "local"
-    : pinnedAlphaIndex !== null
+    : isPinnedAlphaSlice
       ? "slice"
       : selectedStatusVisible && selectedDatum?.status === "self_replicator"
         ? "focus"
@@ -1090,30 +1215,39 @@ function ParameterScene({
       />
       {localMode && neighborhood ? (
         <>
-          <CubeFrame local />
+          {isPinnedLocalSlice && targetAlpha !== null ? (
+            <FlatSliceFrame alpha={targetAlpha} z={localSliceZ} />
+          ) : (
+            <CubeFrame local />
+          )}
           <RefinementView
             activeAlphaIndex={localAlphaIndex}
             neighborhood={neighborhood}
             selectedSample={selectedRefinementSample}
+            showFaded={!isPinnedLocalSlice}
             onHoverSample={(sample) => onHoverRefinementSample?.(sample)}
             onSelectSample={(sample) => onSelectRefinementSample?.(sample)}
           />
-          {localAlphaIndex !== null && <SlicePlane z={localSliceZ} />}
+          {localAlphaIndex !== null && !isPinnedLocalSlice && (
+            <SlicePlane z={localSliceZ} />
+          )}
         </>
       ) : (
         <>
-          <CubeFrame />
-          <PointCloud
-            data={splitData.faded}
-            depthWrite={false}
-            hoveredPointId={hoveredPointId}
-            opacity={0.2}
-            pickable={false}
-            pointSize={20}
-            renderOrder={0}
-            onHoverPoint={onHoverPoint}
-            onSelectPoint={onSelectPoint}
-          />
+          {!isPinnedAlphaSlice && <CubeFrame />}
+          {!isPinnedAlphaSlice && (
+            <PointCloud
+              data={splitData.faded}
+              depthWrite={false}
+              hoveredPointId={hoveredPointId}
+              opacity={0.2}
+              pickable={false}
+              pointSize={20}
+              renderOrder={0}
+              onHoverPoint={onHoverPoint}
+              onSelectPoint={onSelectPoint}
+            />
+          )}
           <PointCloud
             data={splitData.active}
             depthTest={validAlphaIndex === null}
@@ -1125,7 +1259,11 @@ function ParameterScene({
             onHoverPoint={onHoverPoint}
             onSelectPoint={onSelectPoint}
           />
-          {validAlphaIndex !== null && <SlicePlane z={globalSliceZ} />}
+          {isPinnedAlphaSlice && targetAlpha !== null ? (
+            <FlatSliceFrame alpha={targetAlpha} z={globalSliceZ} />
+          ) : (
+            validAlphaIndex !== null && <SlicePlane z={globalSliceZ} />
+          )}
           {neighborhood &&
             globalRefinementTransform &&
             localAlphaIndex !== null && (
@@ -1147,20 +1285,22 @@ function ParameterScene({
                 />
               </group>
             )}
-          <AlphaRails
-            alphaValues={manifest.axes.alpha.values}
-            pinnedAlphaIndex={pinnedAlphaIndex}
-            previewAlphaIndex={previewAlphaIndex}
-            onPinnedAlphaChange={onPinnedAlphaChange}
-            onPreviewAlphaChange={onPreviewAlphaChange}
-          />
+          {!isPinnedAlphaSlice && (
+            <AlphaRails
+              alphaValues={manifest.axes.alpha.values}
+              pinnedAlphaIndex={pinnedAlphaIndex}
+              previewAlphaIndex={previewAlphaIndex}
+              onPinnedAlphaChange={onPinnedAlphaChange}
+              onPreviewAlphaChange={onPreviewAlphaChange}
+            />
+          )}
           {selectedDatum &&
             selectedStatusVisible &&
-            (pinnedAlphaIndex === null ||
-              selectedDatum.point.grid_index[2] === pinnedAlphaIndex) && (
+            (!isPinnedAlphaSlice ||
+              selectedDatum.point.grid_index[2] === validAlphaIndex) && (
               <SelectionMarker position={selectedDatum.position} />
             )}
-          {hoveredDatum && <PointTooltip datum={hoveredDatum} />}
+          {visibleHoveredDatum && <PointTooltip datum={visibleHoveredDatum} />}
         </>
       )}
     </>
@@ -1194,6 +1334,18 @@ export function CubeViewer({
         : (manifest.points.find((point) => point.id === hoveredPointId) ?? null),
     [hoveredPointId, manifest.points],
   );
+  const pinnedAlphaValue =
+    pinnedAlphaIndex !== null &&
+    pinnedAlphaIndex >= 0 &&
+    pinnedAlphaIndex < manifest.axes.alpha.values.length
+      ? (manifest.axes.alpha.values[pinnedAlphaIndex] ?? null)
+      : null;
+  const visibleHoveredPoint =
+    hoveredPoint &&
+    (pinnedAlphaValue === null ||
+      hoveredPoint.grid_index[2] === pinnedAlphaIndex)
+      ? hoveredPoint
+      : null;
   return (
     <section
       className={["cube-viewer", className].filter(Boolean).join(" ")}
@@ -1208,12 +1360,16 @@ export function CubeViewer({
     >
       {showLegend && <CubeLegend />}
       <div aria-live="polite" style={screenReaderOnlyStyle}>
-        {hoveredPoint
-          ? `Hovered parameter point ${hoveredPoint.id}: m local ${hoveredPoint.coordinates.m_local}, m cross ${hoveredPoint.coordinates.m_cross}, alpha ${hoveredPoint.coordinates.alpha}.`
+        {visibleHoveredPoint
+          ? `Hovered parameter point ${visibleHoveredPoint.id}: m local ${visibleHoveredPoint.coordinates.m_local}, m cross ${visibleHoveredPoint.coordinates.m_cross}, alpha ${visibleHoveredPoint.coordinates.alpha}.`
           : ""}
       </div>
       <Canvas
-        aria-label="Interactive three-dimensional Lenia parameter cube. Drag to orbit, pan, or zoom. Hover or select a point for its parameter triple."
+        aria-label={
+          pinnedAlphaValue === null
+            ? "Interactive three-dimensional Lenia parameter cube. Drag to orbit, pan, or zoom. Hover or select a point for its parameter triple."
+            : `Interactive two-dimensional Lenia parameter grid for alpha ${pinnedAlphaValue.toFixed(3)}. Drag to pan or scroll to zoom. Hover or select a point for its parameter triple.`
+        }
         camera={{
           far: 100,
           fov: 42,

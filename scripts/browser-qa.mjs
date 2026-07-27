@@ -181,6 +181,21 @@ try {
   });
   await alphaButton.click();
   assert.equal(await alphaButton.getAttribute("aria-pressed"), "true");
+  await page
+    .getByLabel(
+      "Interactive two-dimensional Lenia parameter grid for alpha 0.158. Drag to pan or scroll to zoom. Hover or select a point for its parameter triple.",
+    )
+    .waitFor();
+  await page
+    .getByText(
+      "Drag to pan · scroll to zoom · press Esc for the full cube",
+      { exact: true },
+    )
+    .waitFor();
+  await page.waitForTimeout(1_200);
+  await page.locator(".viewer-card").screenshot({
+    path: fileURLToPath(new URL("alpha-slice-0.158.png", outputDirectory)),
+  });
   await page.keyboard.press("Escape");
   await page.getByRole("button", {
     name: "Show the full parameter cube",
@@ -298,6 +313,7 @@ try {
       {
         passed: true,
         viewports: ["1440x900", "1280x720", "390x844"],
+        verifiedAlphaSlice: "0.158",
         verifiedPoints: [
           "triple_00503",
           "triple_00431",

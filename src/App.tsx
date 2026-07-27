@@ -241,6 +241,7 @@ export default function App() {
       if (previewAlphaIndex !== null || pinnedAlphaIndex !== null) {
         setPreviewAlphaIndex(null);
         setPinnedAlphaIndex(null);
+        setHoveredPointId(null);
       } else if (selectedRefinementSample) {
         setSelectedRefinementSample(null);
       } else if (localModeEnabled) {
@@ -271,6 +272,7 @@ export default function App() {
   const handleAlphaSelect = (alphaIndex: number | null) => {
     setPinnedAlphaIndex(alphaIndex);
     setPreviewAlphaIndex(null);
+    setHoveredPointId(null);
     setSelectedRefinementSample(null);
     setLocalModeEnabled(false);
   };
@@ -346,6 +348,7 @@ export default function App() {
               onPinnedAlphaChange={(alphaIndex) => {
                 setPinnedAlphaIndex(alphaIndex);
                 setPreviewAlphaIndex(null);
+                setHoveredPointId(null);
                 setSelectedRefinementSample(null);
                 setLocalModeEnabled(false);
               }}
@@ -364,7 +367,9 @@ export default function App() {
               }}
             />
             <p className="viewer-card__hint">
-              Drag to orbit · scroll to zoom · Shift-drag or right-drag to pan
+              {pinnedAlphaIndex === null
+                ? "Drag to orbit · scroll to zoom · Shift-drag or right-drag to pan"
+                : "Drag to pan · scroll to zoom · press Esc for the full cube"}
             </p>
           </div>
         </section>
