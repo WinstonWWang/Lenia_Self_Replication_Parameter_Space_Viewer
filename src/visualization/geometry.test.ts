@@ -14,10 +14,11 @@ import {
   makeFeaturedPointRenderData,
   makePointRenderData,
   normalizeAxisValue,
-  pointScaleForStatus,
   refinementAlphaIndexForSlab,
   refinementContainsAlpha,
   refinementToGlobalTransform,
+  selfReplicatorGlowRadius,
+  SELF_REPLICATOR_GLOW_DIAMETER_GRID_FRACTION,
   splitPointDataByAlpha,
   type PointRenderDatum,
 } from "./geometry";
@@ -63,6 +64,23 @@ describe("visualization coordinates", () => {
     expect(normalizeAxisValue(0, [0, 0.5, 1])).toBe(-1);
     expect(normalizeAxisValue(0.5, [0, 0.5, 1])).toBe(0);
     expect(normalizeAxisValue(1, [0, 0.5, 1])).toBe(1);
+  });
+
+  it("caps the self-replicator glow below half the smallest grid spacing", () => {
+    const axes = {
+      m_local: { count: 20 as const, values: [0, 0.1, 1] },
+      m_cross: { count: 20 as const, values: [0, 0.5, 1] },
+      alpha: { count: 20 as const, values: [0, 0.5, 1] },
+    };
+    const smallestNormalizedSpacing = 0.2;
+    const glowDiameter = selfReplicatorGlowRadius(axes) * 2;
+    expect(glowDiameter).toBeCloseTo(
+      smallestNormalizedSpacing *
+        SELF_REPLICATOR_GLOW_DIAMETER_GRID_FRACTION,
+    );
+    expect(glowDiameter).toBeLessThan(
+      smallestNormalizedSpacing / 2,
+    );
   });
 
   it("keeps nonuniform cell widths and fills the local cube", () => {
@@ -249,8 +267,16 @@ describe("visualization coordinates", () => {
     expect(canonical[0]?.id).toBe("triple_01608");
     expect(canonical[0]?.status).toBe("self_replicator");
     expect(canonical[0]?.color).toBe("#43d879");
-    expect(pointScaleForStatus(canonical[0]!.status)).toBeGreaterThan(2);
-    expect(pointScaleForStatus("unresolved")).toBe(1);
+
+    const minimumGridSpacing = 2 / 19;
+    const glowDiameter = selfReplicatorGlowRadius(manifest.axes) * 2;
+    expect(glowDiameter).toBeCloseTo(
+      minimumGridSpacing *
+        SELF_REPLICATOR_GLOW_DIAMETER_GRID_FRACTION,
+    );
+    expect(glowDiameter).toBeLessThanOrEqual(
+      minimumGridSpacing / 2,
+    );
   });
 });
 

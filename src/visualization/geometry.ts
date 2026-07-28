@@ -30,13 +30,7 @@ export const STATUS_COLORS: Record<DisplayStatus, string> = {
 };
 
 export const REFINEMENT_NEGATIVE_COLOR = "#9acfff";
-export const SELF_REPLICATOR_POINT_SCALE = 2.2;
-
-export function pointScaleForStatus(status: DisplayStatus): number {
-  return status === "self_replicator"
-    ? SELF_REPLICATOR_POINT_SCALE
-    : 1;
-}
+export const SELF_REPLICATOR_GLOW_DIAMETER_GRID_FRACTION = 0.48;
 
 interface BasePointRenderDatum {
   id: string;
@@ -96,6 +90,39 @@ export function normalizeAxisValue(
   const last = values[values.length - 1];
   if (first === undefined || last === undefined || first === last) return 0;
   return -1 + (2 * (value - first)) / (last - first);
+}
+
+function minimumNormalizedAxisSpacing(
+  values: readonly number[],
+): number {
+  let minimum = Number.POSITIVE_INFINITY;
+  for (let index = 1; index < values.length; index += 1) {
+    const previous = values[index - 1];
+    const current = values[index];
+    if (previous === undefined || current === undefined) continue;
+    const spacing = Math.abs(
+      normalizeAxisValue(current, values) -
+        normalizeAxisValue(previous, values),
+    );
+    if (spacing > 0) minimum = Math.min(minimum, spacing);
+  }
+  return minimum;
+}
+
+export function selfReplicatorGlowRadius(
+  axes: SiteManifest["axes"],
+): number {
+  const minimumGridSpacing = Math.min(
+    minimumNormalizedAxisSpacing(axes.m_local.values),
+    minimumNormalizedAxisSpacing(axes.m_cross.values),
+    minimumNormalizedAxisSpacing(axes.alpha.values),
+  );
+  if (!Number.isFinite(minimumGridSpacing)) return 0;
+  return (
+    (minimumGridSpacing *
+      SELF_REPLICATOR_GLOW_DIAMETER_GRID_FRACTION) /
+    2
+  );
 }
 
 export function coordinatesToWorld(

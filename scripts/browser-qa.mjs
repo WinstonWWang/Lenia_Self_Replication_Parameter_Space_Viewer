@@ -227,6 +227,32 @@ async function projectedCanvasPoint(page, coordinates) {
   };
 }
 
+async function hoverProjectedPointForTooltip(
+  page,
+  coordinates,
+  textPattern,
+  timeout = 5_000,
+) {
+  const projectedPoint = await projectedCanvasPoint(page, coordinates);
+  const deadline = Date.now() + timeout;
+
+  while (Date.now() < deadline) {
+    await page.mouse.move(projectedPoint.x + 2, projectedPoint.y + 2);
+    await page.mouse.move(projectedPoint.x, projectedPoint.y);
+    await page.waitForTimeout(100);
+    const tooltip = page.locator(".cube-viewer__tooltip").first();
+    const tooltipText =
+      (await tooltip.count()) > 0
+        ? await tooltip.textContent({ timeout: 250 }).catch(() => null)
+        : null;
+    if (tooltipText !== null && textPattern.test(tooltipText)) {
+      return projectedPoint;
+    }
+  }
+
+  return null;
+}
+
 await mkdir(outputDirectory, { recursive: true });
 
 const browser = await chromium.launch({
@@ -319,9 +345,16 @@ try {
       await page.mouse.move(x, y);
       await page.waitForTimeout(20);
       const tooltip = page.locator(".cube-viewer__tooltip");
+      const tooltipText =
+        (await tooltip.count()) > 0
+          ? await tooltip
+              .first()
+              .textContent({ timeout: 250 })
+              .catch(() => null)
+          : null;
       foundPointTooltip =
-        (await tooltip.count()) > 0 &&
-        !((await tooltip.textContent()) ?? "").includes("Featured off-grid");
+        tooltipText !== null &&
+        !tooltipText.includes("Featured off-grid");
       if (foundPointTooltip) hoveredPointLocation = { x, y };
     }
   }
@@ -463,6 +496,24 @@ try {
     "true",
   );
 
+  const glowAlphaButton = page.getByRole("button", {
+    name: "Show alpha slice 0.421",
+  });
+  await glowAlphaButton.click();
+  await page
+    .getByLabel(
+      "Interactive two-dimensional Lenia parameter grid for alpha 0.421. Drag to pan or scroll to zoom. Hover or select a point for its parameter triple.",
+    )
+    .waitFor();
+  await page.waitForTimeout(500);
+  await page.locator(".viewer-card").screenshot({
+    path: fileURLToPath(
+      new URL("self-replicator-glow-alpha-slice.png", outputDirectory),
+    ),
+  });
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(1_200);
+
   await page.getByRole("button", { name: "Dynamics" }).click();
   await page
     .getByRole("dialog", { name: "Dynamics equations" })
@@ -491,14 +542,15 @@ try {
       await filter.click();
     }
   }
-  const projectedFeature = await projectedCanvasPoint(
+  const projectedFeature = await hoverProjectedPointForTooltip(
     page,
     OFF_GRID_FEATURES[0].coordinates,
+    /Featured off-grid · triple_00075/,
   );
-  await page.mouse.move(projectedFeature.x, projectedFeature.y);
-  await page
-    .getByText(/Featured off-grid · triple_00075/)
-    .waitFor({ timeout: 5_000 });
+  assert.ok(
+    projectedFeature,
+    "The exact global off-grid marker should become hoverable after the camera returns to the full-cube view.",
+  );
   await page.mouse.click(projectedFeature.x, projectedFeature.y);
   await page
     .locator(

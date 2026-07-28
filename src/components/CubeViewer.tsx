@@ -43,11 +43,11 @@ import {
   makePointRenderData,
   nearestAxisIndex,
   normalizeAxisValue,
-  pointScaleForStatus,
   REFINEMENT_NEGATIVE_COLOR,
   refinementAlphaIndexForSlab,
   refinementToGlobalTransform,
   renderDatumSelection,
+  selfReplicatorGlowRadius,
   splitPointDataByAlpha,
   STATUS_COLORS,
   type LocalNeighborhood,
@@ -92,6 +92,14 @@ interface PointCloudProps {
   depthWrite?: boolean;
 }
 
+interface SelfReplicatorGlowProps {
+  data: readonly PointRenderDatum[];
+  radius: number;
+  opacity: number;
+  renderOrder?: number;
+  depthTest?: boolean;
+}
+
 interface CameraRigProps {
   mode: "cube" | "slice" | "local" | "local-slice" | "focus";
   sliceZ: number;
@@ -100,18 +108,13 @@ interface CameraRigProps {
 
 const POINT_VERTEX_SHADER = `
   attribute vec3 color;
-  attribute float pointScale;
   varying vec3 vColor;
   uniform float uPointSize;
 
   void main() {
     vColor = color;
     vec4 viewPosition = modelViewMatrix * vec4(position, 1.0);
-    gl_PointSize = clamp(
-      (uPointSize * pointScale) / max(0.2, -viewPosition.z),
-      3.0,
-      24.0
-    );
+    gl_PointSize = clamp(uPointSize / max(0.2, -viewPosition.z), 3.0, 12.0);
     gl_Position = projectionMatrix * viewPosition;
   }
 `;
@@ -131,6 +134,7 @@ const POINT_FRAGMENT_SHADER = `
 `;
 
 const CLICK_DRAG_THRESHOLD_PX = 4;
+const IGNORE_RAYCAST: THREE.Mesh["raycast"] = () => {};
 
 const labelStyle: CSSProperties = {
   color: "#ffffff",
@@ -224,6 +228,10 @@ export function CubeLegend(): React.JSX.Element {
                     ? "1px solid rgba(255,255,255,0.22)"
                     : undefined,
                 borderRadius: "50%",
+                boxShadow:
+                  label === "Self-replicator"
+                    ? "0 0 0 4px rgba(67,216,121,0.16)"
+                    : undefined,
                 display: "block",
                 height: "0.54rem",
                 width: "0.54rem",
@@ -254,22 +262,16 @@ function PointCloud({
     const nextGeometry = new THREE.BufferGeometry();
     const positions = new Float32Array(data.length * 3);
     const colors = new Float32Array(data.length * 3);
-    const pointScales = new Float32Array(data.length);
     const color = new THREE.Color();
     data.forEach((datum, index) => {
       positions.set(datum.position, index * 3);
       color.set(datum.color).toArray(colors, index * 3);
-      pointScales[index] = pointScaleForStatus(datum.status);
     });
     nextGeometry.setAttribute(
       "position",
       new THREE.BufferAttribute(positions, 3),
     );
     nextGeometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-    nextGeometry.setAttribute(
-      "pointScale",
-      new THREE.BufferAttribute(pointScales, 1),
-    );
     nextGeometry.computeBoundingSphere();
     return nextGeometry;
   }, [data]);
@@ -329,6 +331,61 @@ function PointCloud({
         if (pickable) onHoverPoint(null);
       }}
     />
+  );
+}
+
+function SelfReplicatorGlow({
+  data,
+  radius,
+  opacity,
+  renderOrder = 0,
+  depthTest = true,
+}: SelfReplicatorGlowProps): React.JSX.Element | null {
+  const selfReplicators = useMemo(
+    () => data.filter((datum) => datum.status === "self_replicator"),
+    [data],
+  );
+  const geometry = useMemo(
+    () => new THREE.SphereGeometry(1, 20, 14),
+    [],
+  );
+  const material = useMemo(() => {
+    const nextMaterial = new THREE.MeshBasicMaterial({
+      blending: THREE.AdditiveBlending,
+      color: STATUS_COLORS.self_replicator,
+      depthTest,
+      depthWrite: false,
+      opacity,
+      transparent: true,
+    });
+    nextMaterial.toneMapped = false;
+    return nextMaterial;
+  }, [depthTest, opacity]);
+
+  useEffect(
+    () => () => {
+      geometry.dispose();
+      material.dispose();
+    },
+    [geometry, material],
+  );
+
+  if (selfReplicators.length === 0 || radius <= 0) return null;
+
+  return (
+    <group>
+      {selfReplicators.map((datum) => (
+        <mesh
+          key={`${datum.kind}:${datum.id}`}
+          geometry={geometry}
+          material={material}
+          position={datum.position}
+          raycast={IGNORE_RAYCAST}
+          renderOrder={renderOrder}
+          scale={radius}
+        />
+      ))}
+    </group>
   );
 }
 
@@ -1184,6 +1241,10 @@ function ParameterScene({
   localModeEnabled = true,
   visibleStatuses,
 }: Omit<CubeViewerProps, "className" | "showLegend">): React.JSX.Element {
+  const glowRadius = useMemo(
+    () => selfReplicatorGlowRadius(manifest.axes),
+    [manifest.axes],
+  );
   const pointData = useMemo(
     () => [
       ...makePointRenderData(manifest, reviewOverlay, featuredCatalog),
@@ -1362,18 +1423,34 @@ function ParameterScene({
         <>
           {!isPinnedAlphaSlice && <CubeFrame />}
           {!isPinnedAlphaSlice && (
-            <PointCloud
-              data={splitData.faded}
-              depthWrite={false}
-              hoveredPoint={hoveredPoint}
-              opacity={0.2}
-              pickable={false}
-              pointSize={20}
-              renderOrder={0}
-              onHoverPoint={onHoverPoint}
-              onSelectPoint={onSelectPoint}
-            />
+            <>
+              <SelfReplicatorGlow
+                data={splitData.faded}
+                depthTest
+                opacity={0.035}
+                radius={glowRadius}
+                renderOrder={-1}
+              />
+              <PointCloud
+                data={splitData.faded}
+                depthWrite={false}
+                hoveredPoint={hoveredPoint}
+                opacity={0.2}
+                pickable={false}
+                pointSize={20}
+                renderOrder={0}
+                onHoverPoint={onHoverPoint}
+                onSelectPoint={onSelectPoint}
+              />
+            </>
           )}
+          <SelfReplicatorGlow
+            data={splitData.active}
+            depthTest={validAlphaIndex === null}
+            opacity={0.18}
+            radius={glowRadius}
+            renderOrder={validAlphaIndex === null ? 0 : 2}
+          />
           <PointCloud
             data={splitData.active}
             depthTest={validAlphaIndex === null}

@@ -27,6 +27,8 @@ export const THUMBNAIL_STATUS_COLORS: Readonly<Record<DisplayStatus, string>> = 
 
 const CANVAS_SIZE = 80;
 const POINT_RADIUS_RATIO = 0.32;
+const SELF_REPLICATOR_GLOW_RADIUS_MULTIPLIER = 1.8;
+const SELF_REPLICATOR_GLOW_COLOR = "rgba(70, 211, 105, 0.2)";
 
 function drawPoint(
   context: CanvasRenderingContext2D,
@@ -39,6 +41,31 @@ function drawPoint(
   context.arc(x, y, radius, 0, Math.PI * 2);
   context.fillStyle = color;
   context.fill();
+}
+
+function drawStatusPoint(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  radius: number,
+  status: DisplayStatus,
+): void {
+  if (status === "self_replicator") {
+    drawPoint(
+      context,
+      x,
+      y,
+      radius * SELF_REPLICATOR_GLOW_RADIUS_MULTIPLIER,
+      SELF_REPLICATOR_GLOW_COLOR,
+    );
+  }
+  drawPoint(
+    context,
+    x,
+    y,
+    radius,
+    THUMBNAIL_STATUS_COLORS[status],
+  );
 }
 
 function exactAxisPosition(
@@ -111,20 +138,18 @@ export function SliceThumbnail({
       );
       if (visibleStatuses && !visibleStatuses.has(status)) continue;
 
-      drawPoint(
+      drawStatusPoint(
         context,
         (point.grid_index[0] + 0.5) * cellWidth,
         (mCrossCount - point.grid_index[1] - 0.5) * cellHeight,
-        status === "self_replicator"
-          ? pointRadius * 1.8
-          : pointRadius,
-        THUMBNAIL_STATUS_COLORS[status],
+        pointRadius,
+        status,
       );
     }
 
     if (!visibleStatuses || visibleStatuses.has("self_replicator")) {
       for (const datum of featuredSlicePoints) {
-        drawPoint(
+        drawStatusPoint(
           context,
           exactAxisPosition(
             datum.coordinates.m_local,
@@ -137,8 +162,8 @@ export function SliceThumbnail({
               manifest.axes.m_cross.values,
               canvas.height,
             ),
-          pointRadius * 1.8,
-          THUMBNAIL_STATUS_COLORS.self_replicator,
+          pointRadius,
+          "self_replicator",
         );
       }
     }
