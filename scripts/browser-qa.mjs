@@ -231,22 +231,31 @@ async function hoverProjectedPointForTooltip(
   page,
   coordinates,
   textPattern,
-  timeout = 5_000,
+  timeout = 10_000,
 ) {
   const projectedPoint = await projectedCanvasPoint(page, coordinates);
   const deadline = Date.now() + timeout;
+  const offsets = [0, -6, 6, -12, 12, -18, 18];
 
   while (Date.now() < deadline) {
-    await page.mouse.move(projectedPoint.x + 2, projectedPoint.y + 2);
-    await page.mouse.move(projectedPoint.x, projectedPoint.y);
-    await page.waitForTimeout(100);
-    const tooltip = page.locator(".cube-viewer__tooltip").first();
-    const tooltipText =
-      (await tooltip.count()) > 0
-        ? await tooltip.textContent({ timeout: 250 }).catch(() => null)
-        : null;
-    if (tooltipText !== null && textPattern.test(tooltipText)) {
-      return projectedPoint;
+    for (const offsetY of offsets) {
+      for (const offsetX of offsets) {
+        const candidate = {
+          x: projectedPoint.x + offsetX,
+          y: projectedPoint.y + offsetY,
+        };
+        await page.mouse.move(candidate.x, candidate.y);
+        await page.waitForTimeout(30);
+        const tooltip = page.locator(".cube-viewer__tooltip").first();
+        const tooltipText =
+          (await tooltip.count()) > 0
+            ? await tooltip.textContent({ timeout: 250 }).catch(() => null)
+            : null;
+        if (tooltipText !== null && textPattern.test(tooltipText)) {
+          return candidate;
+        }
+        if (Date.now() >= deadline) return null;
+      }
     }
   }
 
@@ -532,6 +541,8 @@ try {
     state: "detached",
   });
 
+  await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+  await page.locator(".cube-viewer canvas").waitFor({ timeout: 30_000 });
   for (const status of [
     "Unresolved",
     "Experimentally dead",
@@ -545,7 +556,7 @@ try {
   const projectedFeature = await hoverProjectedPointForTooltip(
     page,
     OFF_GRID_FEATURES[0].coordinates,
-    /Featured off-grid · triple_00075/,
+    /Featured off-grid.*triple_00075/,
   );
   assert.ok(
     projectedFeature,

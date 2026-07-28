@@ -266,7 +266,7 @@ describe("visualization coordinates", () => {
     expect(canonical).toHaveLength(1);
     expect(canonical[0]?.id).toBe("triple_01608");
     expect(canonical[0]?.status).toBe("self_replicator");
-    expect(canonical[0]?.color).toBe("#43d879");
+    expect(canonical[0]?.color).toBe("#39ff14");
 
     const minimumGridSpacing = 2 / 19;
     const glowDiameter = selfReplicatorGlowRadius(manifest.axes) * 2;

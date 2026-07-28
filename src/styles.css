@@ -15,7 +15,7 @@
   --text-muted: #b5bac1;
   --focus: #9acfff;
   --unresolved: #69adff;
-  --self-replicator: #43d879;
+  --self-replicator: #39ff14;
   --dead: #030405;
   --uninteresting: #17191c;
   --reviewed-negative: #9acfff;
@@ -516,7 +516,7 @@ sub {
 
 .viewer-legend__swatch--self-replicator {
   background: var(--self-replicator);
-  box-shadow: 0 0 0 4px rgba(67, 216, 121, 0.16);
+  box-shadow: 0 0 0 4px rgba(57, 255, 20, 0.16);
 }
 
 .viewer-legend__swatch--unresolved {

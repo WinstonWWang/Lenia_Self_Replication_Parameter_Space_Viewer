@@ -230,7 +230,7 @@ export function CubeLegend(): React.JSX.Element {
                 borderRadius: "50%",
                 boxShadow:
                   label === "Self-replicator"
-                    ? "0 0 0 4px rgba(67,216,121,0.16)"
+                    ? "0 0 0 4px rgba(57,255,20,0.16)"
                     : undefined,
                 display: "block",
                 height: "0.54rem",

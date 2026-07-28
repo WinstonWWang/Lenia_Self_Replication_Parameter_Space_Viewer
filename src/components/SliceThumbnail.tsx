@@ -22,13 +22,13 @@ export const THUMBNAIL_STATUS_COLORS: Readonly<Record<DisplayStatus, string>> = 
   physically_uninteresting: "#1d1f20",
   experimentally_dead: "#000000",
   unresolved: "#62a7f5",
-  self_replicator: "#46d369",
+  self_replicator: "#39ff14",
 };
 
 const CANVAS_SIZE = 80;
 const POINT_RADIUS_RATIO = 0.32;
 const SELF_REPLICATOR_GLOW_RADIUS_MULTIPLIER = 1.8;
-const SELF_REPLICATOR_GLOW_COLOR = "rgba(70, 211, 105, 0.2)";
+const SELF_REPLICATOR_GLOW_COLOR = "rgba(57, 255, 20, 0.2)";
 
 function drawPoint(
   context: CanvasRenderingContext2D,

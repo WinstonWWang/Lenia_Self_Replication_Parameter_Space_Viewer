@@ -26,7 +26,7 @@ export const STATUS_COLORS: Record<DisplayStatus, string> = {
   physically_uninteresting: "#17191c",
   experimentally_dead: "#030405",
   unresolved: "#69adff",
-  self_replicator: "#43d879",
+  self_replicator: "#39ff14",
 };
 
 export const REFINEMENT_NEGATIVE_COLOR = "#9acfff";
