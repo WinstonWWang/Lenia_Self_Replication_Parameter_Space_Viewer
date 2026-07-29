@@ -261,9 +261,6 @@ export default function App() {
       setSelectedPoint(selection);
       setSelectedLocalSample(null);
       setPreviewAlphaIndex(null);
-      if (options.clearSlice) {
-        setPinnedAlphaIndex(null);
-      }
       const displayStatus: DisplayStatus = coarsePoint
         ? deriveDisplayStatus(
             coarsePoint,
@@ -301,10 +298,13 @@ export default function App() {
                   selection.id,
                 ),
             );
-      setLocalModeEnabled(
+      const entersLocalMode =
         displayStatus === "self_replicator" &&
-          hasNeighborhood,
-      );
+        hasNeighborhood;
+      if (options.clearSlice || entersLocalMode) {
+        setPinnedAlphaIndex(null);
+      }
+      setLocalModeEnabled(entersLocalMode);
       updateSelectionQuery(selection, options.history ?? "push");
     },
     [data, featuredPointById, pointById],

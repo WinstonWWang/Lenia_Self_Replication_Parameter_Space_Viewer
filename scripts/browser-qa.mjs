@@ -227,6 +227,57 @@ async function projectedCanvasPoint(page, coordinates) {
   };
 }
 
+async function projectedFlatSlicePoint(page, coordinates) {
+  const canvas = page.locator(".cube-viewer canvas");
+  const box = await canvas.boundingBox();
+  assert.ok(box, "The 2D canvas should have a visible bounding box.");
+
+  const aspect = box.width / box.height;
+  const halfFovTangent = Math.tan(THREE.MathUtils.degToRad(42 / 2));
+  const cameraDistance = Math.max(
+    3.25,
+    1.24 / halfFovTangent,
+    1.24 / (halfFovTangent * aspect),
+  );
+  const halfHeight = cameraDistance * halfFovTangent;
+  const halfWidth = halfHeight * aspect;
+  const worldX = -1 + 2 * coordinates.m_local;
+  const worldY = -1 + (2 * coordinates.m_cross) / 7.31913948059082;
+
+  return {
+    x: box.x + ((worldX / halfWidth + 1) / 2) * box.width,
+    y: box.y + ((1 - worldY / halfHeight) / 2) * box.height,
+  };
+}
+
+async function clickFlatSlicePoint(
+  page,
+  coordinates,
+  successLocator,
+) {
+  const projectedPoint = await projectedFlatSlicePoint(page, coordinates);
+  const offsets = [0, -3, 3, -6, 6, -9, 9];
+
+  for (const offsetY of offsets) {
+    for (const offsetX of offsets) {
+      const candidate = {
+        x: projectedPoint.x + offsetX,
+        y: projectedPoint.y + offsetY,
+      };
+      await page.mouse.click(candidate.x, candidate.y);
+      const reachedTarget = await successLocator
+        .waitFor({ state: "visible", timeout: 250 })
+        .then(() => true)
+        .catch(() => false);
+      if (reachedTarget) {
+        return candidate;
+      }
+    }
+  }
+
+  return null;
+}
+
 async function hoverProjectedPointForTooltip(
   page,
   coordinates,
@@ -522,6 +573,58 @@ try {
   });
   await page.keyboard.press("Escape");
   await page.waitForTimeout(1_200);
+
+  await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+  await page.locator(".cube-viewer canvas").waitFor({ timeout: 30_000 });
+  const canonicalAlphaButton = page.getByRole("button", {
+    name: "Show alpha slice 0.526",
+  });
+  await canonicalAlphaButton.click();
+  await page
+    .getByLabel(
+      "Interactive two-dimensional Lenia parameter grid for alpha 0.526. Drag to pan or scroll to zoom. Hover or select a point for its parameter triple.",
+    )
+    .waitFor();
+  await page.waitForTimeout(1_200);
+  await page.locator(".viewer-card").screenshot({
+    path: fileURLToPath(
+      new URL("canonical-refinement-slice-before-click.png", outputDirectory),
+    ),
+  });
+  const localCube = page.getByLabel(
+    "Interactive three-dimensional Lenia parameter cube. Drag to orbit, pan, or zoom. Hover or select a point for its parameter triple.",
+  );
+  const canonicalSlicePoint = await clickFlatSlicePoint(
+    page,
+    CANONICAL_LINKED_FEATURES[0].coordinates,
+    localCube,
+  );
+  assert.ok(
+    canonicalSlicePoint,
+    "The canonical self-replicator should be selectable from its alpha slice.",
+  );
+  await localCube.waitFor();
+  await page
+    .locator('.detail-panel[data-point-id="triple_01210"]')
+    .waitFor({ timeout: 30_000 });
+  assert.equal(
+    await canonicalAlphaButton.getAttribute("aria-pressed"),
+    "false",
+    "Selecting a refined self-replicator from an alpha slice should reopen its 3D local neighborhood.",
+  );
+  assert.match(
+    (await page
+      .locator(".cube-viewer__refinement-status")
+      .textContent()) ?? "",
+    /Featured local neighborhood for triple_01210 is displayed/,
+    "The restored 3D view should retain the selected refinement neighborhood.",
+  );
+  await page.waitForTimeout(1_200);
+  await page.locator(".viewer-card").screenshot({
+    path: fileURLToPath(
+      new URL("canonical-refinement-cube-restored.png", outputDirectory),
+    ),
+  });
 
   await page.getByRole("button", { name: "Dynamics" }).click();
   await page
