@@ -74,6 +74,7 @@ export interface CubeViewerProps {
   onSelectLocalSample?: (sample: LocalSample | null) => void;
   onHoverLocalSample?: (sample: LocalSample | null) => void;
   localModeEnabled?: boolean;
+  replicatorVariationsOnly?: boolean;
   visibleStatuses?: ReadonlySet<DisplayStatus>;
   className?: string;
   showLegend?: boolean;
@@ -1080,6 +1081,7 @@ function RefinementView({
   centerCoordinates,
   exactCoordinateLabels = false,
   showFaded = true,
+  showNonReplicating = true,
   onHoverSample,
   onSelectSample,
 }: {
@@ -1089,6 +1091,7 @@ function RefinementView({
   centerCoordinates?: ParameterCoordinates;
   exactCoordinateLabels?: boolean;
   showFaded?: boolean;
+  showNonReplicating?: boolean;
   onHoverSample: (sample: LocalSample | null) => void;
   onSelectSample: (sample: LocalSample) => void;
 }): React.JSX.Element {
@@ -1109,11 +1112,14 @@ function RefinementView({
   const visibleCells = showFaded
     ? [
         ...cells.positive,
-        ...cells.negative,
+        ...(showNonReplicating ? cells.negative : []),
         ...cells.fadedPositive,
-        ...cells.fadedNegative,
+        ...(showNonReplicating ? cells.fadedNegative : []),
       ]
-    : [...cells.positive, ...cells.negative];
+    : [
+        ...cells.positive,
+        ...(showNonReplicating ? cells.negative : []),
+      ];
   const selectedCell = selectedSample
     ? visibleCells.find(
         (cell) =>
@@ -1153,15 +1159,17 @@ function RefinementView({
             onHover={handleHover}
             onSelect={(cell) => onSelectSample(cell.sample)}
           />
-          <VoxelInstances
-            cells={cells.fadedNegative}
-            color={REFINEMENT_NEGATIVE_COLOR}
-            opacity={0.045}
-            pickable={false}
-            renderOrder={1}
-            onHover={handleHover}
-            onSelect={(cell) => onSelectSample(cell.sample)}
-          />
+          {showNonReplicating && (
+            <VoxelInstances
+              cells={cells.fadedNegative}
+              color={REFINEMENT_NEGATIVE_COLOR}
+              opacity={0.045}
+              pickable={false}
+              renderOrder={1}
+              onHover={handleHover}
+              onSelect={(cell) => onSelectSample(cell.sample)}
+            />
+          )}
         </>
       )}
       <VoxelInstances
@@ -1173,15 +1181,17 @@ function RefinementView({
         onHover={handleHover}
         onSelect={(cell) => onSelectSample(cell.sample)}
       />
-      <VoxelInstances
-        cells={cells.negative}
-        color={REFINEMENT_NEGATIVE_COLOR}
-        opacity={0.24}
-        pickable
-        renderOrder={2}
-        onHover={handleHover}
-        onSelect={(cell) => onSelectSample(cell.sample)}
-      />
+      {showNonReplicating && (
+        <VoxelInstances
+          cells={cells.negative}
+          color={REFINEMENT_NEGATIVE_COLOR}
+          opacity={0.24}
+          pickable
+          renderOrder={2}
+          onHover={handleHover}
+          onSelect={(cell) => onSelectSample(cell.sample)}
+        />
+      )}
       <LineGeometry
         color="#ffffff"
         opacity={1}
@@ -1239,6 +1249,7 @@ function ParameterScene({
   onSelectLocalSample,
   onHoverLocalSample,
   localModeEnabled = true,
+  replicatorVariationsOnly = false,
   visibleStatuses,
 }: Omit<CubeViewerProps, "className" | "showLegend">): React.JSX.Element {
   const glowRadius = useMemo(
@@ -1412,6 +1423,7 @@ function ParameterScene({
             neighborhood={neighborhood}
             selectedSample={selectedLocalSample}
             showFaded={!isPinnedLocalSlice}
+            showNonReplicating={!replicatorVariationsOnly}
             onHoverSample={(sample) => onHoverLocalSample?.(sample)}
             onSelectSample={(sample) => onSelectLocalSample?.(sample)}
           />
@@ -1533,6 +1545,7 @@ export function CubeViewer({
   onSelectLocalSample,
   onHoverLocalSample,
   localModeEnabled = true,
+  replicatorVariationsOnly = false,
   visibleStatuses,
   className,
   showLegend = false,
@@ -1647,7 +1660,7 @@ export function CubeViewer({
         style={screenReaderOnlyStyle}
       >
         {selectedCatalogPoint && localModeEnabled
-          ? `Featured local neighborhood for ${selectedCatalogPoint.display_label} is displayed. The white marker identifies its selected center or variation. White lines mark the boundary between manually classified sampled outcomes.`
+          ? `Featured local neighborhood for ${selectedCatalogPoint.display_label} is displayed. The white marker identifies its selected center or variation. White lines mark the boundary between manually classified sampled outcomes.${replicatorVariationsOnly ? " Only self-replicating variation cells are visible." : ""}`
           : selectedCatalogPoint &&
               pinnedAlphaValue !== null &&
               selectedFeaturedFineAlpha !== null
@@ -1703,6 +1716,7 @@ export function CubeViewer({
           onSelectLocalSample={onSelectLocalSample}
           onHoverLocalSample={onHoverLocalSample}
           localModeEnabled={localModeEnabled}
+          replicatorVariationsOnly={replicatorVariationsOnly}
           visibleStatuses={visibleStatuses}
         />
       </Canvas>

@@ -145,6 +145,8 @@ export default function App() {
     null,
   );
   const [localModeEnabled, setLocalModeEnabled] = useState(false);
+  const [replicatorVariationsOnly, setReplicatorVariationsOnly] =
+    useState(false);
   const [dynamicsOpen, setDynamicsOpen] = useState(false);
   const [visibleStatuses, setVisibleStatuses] = useState<
     Set<DisplayStatus>
@@ -489,6 +491,7 @@ export default function App() {
               pinnedAlphaIndex={pinnedAlphaIndex}
               previewAlphaIndex={previewAlphaIndex}
               localModeEnabled={localModeEnabled}
+              replicatorVariationsOnly={replicatorVariationsOnly}
               visibleStatuses={visibleStatuses}
               showLegend={false}
               onSelectPoint={handleCubeSelect}
@@ -505,6 +508,21 @@ export default function App() {
             />
             <Legend
               visibleStatuses={visibleStatuses}
+              showRefinementToggle={
+                localModeEnabled &&
+                visibleStatuses.has("self_replicator") &&
+                Boolean(selectedNeighborhood ?? selectedFeaturedNeighborhood)
+              }
+              replicatorVariationsOnly={replicatorVariationsOnly}
+              onToggleReplicatorVariations={() => {
+                if (
+                  !replicatorVariationsOnly &&
+                  selectedLocalSample?.status !== "self_replicator"
+                ) {
+                  setSelectedLocalSample(null);
+                }
+                setReplicatorVariationsOnly((current) => !current);
+              }}
               onToggle={(status) => {
                 setHoveredPoint(null);
                 setVisibleStatuses((current) => {

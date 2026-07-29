@@ -379,6 +379,15 @@ try {
     1,
     "The cube should show exactly one point-status legend.",
   );
+  assert.equal(
+    await page
+      .getByRole("button", {
+        name: "Show only self-replicating variations",
+      })
+      .count(),
+    0,
+    "The local-variation filter should stay hidden in the global cube.",
+  );
   const unresolvedFilter = page.getByRole("button", {
     name: "Unresolved",
     exact: true,
@@ -725,6 +734,46 @@ try {
       new URL("featured-off-grid-selected.png", outputDirectory),
     ),
   });
+  const variationFilter = page.getByRole("button", {
+    name: "Show only self-replicating variations",
+  });
+  await variationFilter.waitFor();
+  assert.equal(await variationFilter.getAttribute("aria-pressed"), "false");
+  const refinementCanvas = page.locator(".cube-viewer canvas");
+  const beforeVariationFilter = await refinementCanvas.screenshot({
+    mask: [page.getByLabel("Point status legend")],
+  });
+  await variationFilter.click();
+  assert.equal(await variationFilter.getAttribute("aria-pressed"), "true");
+  await page
+    .getByText(/Only self-replicating variation cells are visible/)
+    .waitFor();
+  await page.waitForTimeout(500);
+  const afterVariationFilter = await refinementCanvas.screenshot({
+    mask: [page.getByLabel("Point status legend")],
+  });
+  assert.ok(
+    !beforeVariationFilter.equals(afterVariationFilter),
+    "Enabling the local-variation filter should change the refinement scene.",
+  );
+  for (const status of [
+    "Unresolved",
+    "Experimentally dead",
+    "Physically uninteresting",
+  ]) {
+    assert.equal(
+      await page
+        .getByRole("button", { name: status, exact: true })
+        .getAttribute("aria-pressed"),
+      "false",
+      "The local-variation filter must not change global status filters.",
+    );
+  }
+  await page.locator(".viewer-card").screenshot({
+    path: fileURLToPath(
+      new URL("featured-off-grid-replicators-only.png", outputDirectory),
+    ),
+  });
 
   const featuredAlphaButton = page.getByRole("button", {
     name: "Show alpha slice 0.737",
@@ -745,6 +794,7 @@ try {
       /Featured neighborhood plane at exact alpha 0\.7561357617378235 is displayed within coarse alpha slab 0\.736842/,
     )
     .waitFor();
+  await variationFilter.waitFor({ state: "detached" });
   await page.waitForTimeout(500);
   await page.locator(".viewer-card").screenshot({
     path: fileURLToPath(
@@ -768,6 +818,14 @@ try {
     "An exact-coordinate search should select the feature without snapping.",
   );
   assert.equal(selectedUrl.searchParams.get("point"), null);
+  await variationFilter.waitFor();
+  assert.equal(
+    await variationFilter.getAttribute("aria-pressed"),
+    "true",
+    "The local-variation visibility preference should persist when the local cube is reopened.",
+  );
+  await variationFilter.click();
+  assert.equal(await variationFilter.getAttribute("aria-pressed"), "false");
 
   await page.waitForTimeout(500);
   const variationLocation = await hoverCanvasForTooltip(
@@ -934,6 +992,12 @@ try {
       .textContent()) ?? "",
     /Featured local neighborhood for triple_01608 is displayed/,
     "The linked featured neighborhood should open from its canonical point.",
+  );
+  await variationFilter.waitFor();
+  assert.equal(
+    await variationFilter.getAttribute("aria-pressed"),
+    "false",
+    "The refinement filter should also be available for canonical linked neighborhoods.",
   );
 
   for (const feature of OFF_GRID_FEATURES) {

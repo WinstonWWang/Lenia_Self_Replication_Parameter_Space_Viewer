@@ -26,9 +26,18 @@ const LEGEND_ITEMS: ReadonlyArray<{
 export interface LegendProps {
   visibleStatuses: ReadonlySet<DisplayStatus>;
   onToggle: (status: DisplayStatus) => void;
+  showRefinementToggle?: boolean;
+  replicatorVariationsOnly?: boolean;
+  onToggleReplicatorVariations?: () => void;
 }
 
-export function Legend({ visibleStatuses, onToggle }: LegendProps) {
+export function Legend({
+  visibleStatuses,
+  onToggle,
+  showRefinementToggle = false,
+  replicatorVariationsOnly = false,
+  onToggleReplicatorVariations,
+}: LegendProps) {
   return (
     <aside className="viewer-legend" aria-label="Point status legend">
       <h2>Status · click to filter</h2>
@@ -49,6 +58,21 @@ export function Legend({ visibleStatuses, onToggle }: LegendProps) {
           </li>
         ))}
       </ul>
+      {showRefinementToggle && onToggleReplicatorVariations && (
+        <div className="viewer-legend__refinement">
+          <h3>Local variations</h3>
+          <button
+            className="viewer-legend__variation-toggle"
+            type="button"
+            aria-label="Show only self-replicating variations"
+            aria-pressed={replicatorVariationsOnly}
+            onClick={onToggleReplicatorVariations}
+          >
+            <span className="viewer-legend__switch" aria-hidden="true" />
+            <span>Replicators only</span>
+          </button>
+        </div>
+      )}
     </aside>
   );
 }

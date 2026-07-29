@@ -506,6 +506,68 @@ sub {
   opacity: 1;
 }
 
+.viewer-legend__refinement {
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.viewer-legend__refinement h3 {
+  margin: 0 0 5px;
+  color: var(--text-muted);
+  font-size: 0.58rem;
+  font-weight: 650;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.viewer-legend .viewer-legend__variation-toggle,
+.viewer-legend .viewer-legend__variation-toggle[aria-pressed="false"] {
+  opacity: 1;
+  text-decoration: none;
+}
+
+.viewer-legend__switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 25px;
+  height: 14px;
+  border: 1px solid rgba(181, 186, 193, 0.55);
+  border-radius: 999px;
+  background: rgba(181, 186, 193, 0.18);
+  transition:
+    border-color 140ms ease,
+    background 140ms ease;
+}
+
+.viewer-legend__switch::after {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  content: "";
+  transition:
+    transform 140ms ease,
+    background 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.viewer-legend__variation-toggle[aria-pressed="true"]
+  .viewer-legend__switch {
+  border-color: rgba(57, 255, 20, 0.7);
+  background: rgba(57, 255, 20, 0.2);
+}
+
+.viewer-legend__variation-toggle[aria-pressed="true"]
+  .viewer-legend__switch::after {
+  transform: translateX(11px);
+  background: var(--self-replicator);
+  box-shadow: 0 0 7px rgba(57, 255, 20, 0.75);
+}
+
 .viewer-legend__swatch {
   flex: 0 0 auto;
   width: 9px;
@@ -1236,7 +1298,8 @@ sub {
     padding: 7px 8px;
   }
 
-  .viewer-legend li {
+  .viewer-legend li,
+  .viewer-legend button {
     font-size: 0.6rem;
   }
 
